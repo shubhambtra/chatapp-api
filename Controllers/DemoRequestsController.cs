@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ChatApp.API.Data;
 using ChatApp.API.Models.DTOs;
 using ChatApp.API.Models.Entities;
+using ChatApp.API.Services.Interfaces;
 
 namespace ChatApp.API.Controllers;
 
@@ -12,16 +13,19 @@ namespace ChatApp.API.Controllers;
 public class DemoRequestsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IEmailService _emailService;
 
-    public DemoRequestsController(ApplicationDbContext context)
+    public DemoRequestsController(ApplicationDbContext context, IEmailService emailService)
     {
         _context = context;
+        _emailService = emailService;
     }
 
     // Inline DTOs
     public record CreateDemoRequestDto(string Name, string Email, string Company, string? Phone, string? Message);
     public record UpdateDemoStatusDto(string Status);
     public record UpdateDemoNotesDto(string? AdminNotes);
+    public record SendDemoEmailDto(string Subject, string Body);
     public record DemoRequestDto(
         string Id, string Name, string Email, string Company, string? Phone, string? Message,
         string Status, string? AdminNotes, string? IpAddress, string? UserAgent,
@@ -150,6 +154,42 @@ public class DemoRequestsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok(ApiResponse<DemoRequestDto>.Ok(MapToDto(demoRequest), "Notes updated"));
+    }
+
+    /// <summary>
+    /// Send email to demo requester (admin only)
+    /// </summary>
+    [HttpPost("{id}/send-email")]
+    [Authorize(Roles = "super_admin")]
+    public async Task<ActionResult<ApiResponse<string>>> SendEmail(string id, [FromBody] SendDemoEmailDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Subject) || string.IsNullOrWhiteSpace(request.Body))
+            return BadRequest(ApiResponse<string>.Fail("Subject and body are required"));
+
+        var demoRequest = await _context.DemoRequests.FirstOrDefaultAsync(r => r.Id == id);
+        if (demoRequest == null)
+            return NotFound(ApiResponse<string>.Fail("Demo request not found"));
+
+        var htmlBody = $@"
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                <div style='background: linear-gradient(135deg, #6366f1, #4f46e5); padding: 24px; border-radius: 12px 12px 0 0;'>
+                    <h2 style='color: white; margin: 0;'>{System.Net.WebUtility.HtmlEncode(request.Subject)}</h2>
+                </div>
+                <div style='padding: 24px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;'>
+                    <p style='color: #374151; line-height: 1.6; white-space: pre-wrap;'>{System.Net.WebUtility.HtmlEncode(request.Body)}</p>
+                </div>
+            </div>";
+
+        await _emailService.SendEmailAsync(demoRequest.Email, request.Subject, htmlBody, request.Body);
+
+        // Auto-update status to contacted if still pending
+        if (demoRequest.Status == "pending")
+        {
+            demoRequest.Status = "contacted";
+            await _context.SaveChangesAsync();
+        }
+
+        return Ok(ApiResponse<string>.Ok("Email sent successfully"));
     }
 
     /// <summary>
