@@ -175,11 +175,14 @@ app.UseMiddleware<SubscriptionCheckMiddleware>();
 // Static files for uploaded content
 app.UseStaticFiles();
 
+// Ensure uploads directory exists (prevents DirectoryNotFoundException in Docker/production)
+var uploadsPath = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "uploads");
+Directory.CreateDirectory(uploadsPath);
+
 // Serve uploads folder explicitly
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
-        Path.Combine(app.Environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "uploads")),
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
     RequestPath = "/uploads"
 });
 
