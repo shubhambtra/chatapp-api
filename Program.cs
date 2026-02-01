@@ -193,6 +193,7 @@ app.MapHub<ChatHub>("/hubs/chat");
 app.MapGet("/health", () => Results.Ok(new
 {
     Status = "Healthy",
+    Version = "1.1.0",
     Timestamp = DateTime.UtcNow,
     Services = new Dictionary<string, string>
     {
