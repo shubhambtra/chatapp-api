@@ -84,6 +84,9 @@ public class ApplicationDbContext : DbContext
     // Demo Requests
     public DbSet<DemoRequest> DemoRequests => Set<DemoRequest>();
 
+    // App Configuration
+    public DbSet<AppConfiguration> AppConfigurations => Set<AppConfiguration>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -197,6 +200,14 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<DemoRequest>(entity =>
         {
             entity.ToTable("demo_requests", "dbo");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<AppConfiguration>(entity =>
+        {
+            entity.ToTable("app_settings", "dbo");
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
