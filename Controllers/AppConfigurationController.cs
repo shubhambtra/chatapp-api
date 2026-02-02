@@ -166,21 +166,21 @@ public class AppConfigurationController : ControllerBase
         {
             Id = settings.Id,
             // OpenAI
-            OpenAiApiKey = MaskSecret(settings.OpenAiApiKey),
+            OpenAiApiKey = settings.OpenAiApiKey,
             OpenAiModel = settings.OpenAiModel,
             // Razorpay
-            RazorpayKeyId = MaskSecret(settings.RazorpayKeyId),
-            RazorpayKeySecret = MaskSecret(settings.RazorpayKeySecret),
+            RazorpayKeyId = settings.RazorpayKeyId,
+            RazorpayKeySecret = settings.RazorpayKeySecret,
             // PayPal
-            PayPalClientId = MaskSecret(settings.PayPalClientId),
-            PayPalClientSecret = MaskSecret(settings.PayPalClientSecret),
+            PayPalClientId = settings.PayPalClientId,
+            PayPalClientSecret = settings.PayPalClientSecret,
             PayPalMode = settings.PayPalMode,
             // FTP
             FtpHost = settings.FtpHost,
-            FtpUsername = MaskSecret(settings.FtpUsername),
-            FtpPassword = MaskSecret(settings.FtpPassword),
+            FtpUsername = settings.FtpUsername,
+            FtpPassword = settings.FtpPassword,
             // JWT
-            JwtSecret = MaskSecret(settings.JwtSecret),
+            JwtSecret = settings.JwtSecret,
             JwtIssuer = settings.JwtIssuer,
             JwtAudience = settings.JwtAudience,
             JwtAccessTokenExpirationMinutes = settings.JwtAccessTokenExpirationMinutes,
