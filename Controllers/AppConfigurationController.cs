@@ -31,7 +31,6 @@ public class AppConfigurationController : ControllerBase
 
         if (settings == null)
         {
-            // Return defaults from appsettings.json
             return Ok(ApiResponse<AppConfigurationDto>.Ok(BuildDefaultDto()));
         }
 
