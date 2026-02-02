@@ -120,8 +120,8 @@ public class AppConfigurationController : ControllerBase
         return new AppConfigurationDto
         {
             // OpenAI
-            OpenAiApiKey = MaskSecret(_configuration["OpenAI:ApiKey"]),
-            OpenAiModel = _configuration["OpenAI:Model"] ?? "gpt-4o-mini",
+            OpenAiApiKey = "",
+            OpenAiModel = "gpt-4o-mini",
             // Razorpay
             RazorpayKeyId = MaskSecret(_configuration["Razorpay:KeyId"]),
             RazorpayKeySecret = MaskSecret(_configuration["Razorpay:KeySecret"]),

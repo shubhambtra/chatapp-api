@@ -24,9 +24,18 @@ public class AiService : IAiService
         _knowledgeService = knowledgeService;
     }
 
+    private async Task<(string? ApiKey, string Model)> GetOpenAiSettingsAsync()
+    {
+        var settings = await _context.AppConfigurations.FirstOrDefaultAsync();
+        var apiKey = settings?.OpenAiApiKey;
+        var model = settings?.OpenAiModel ?? "gpt-4o-mini";
+        return (apiKey, model);
+    }
+
     private async Task<string> CallOpenAiAsync(string model, List<object> messages)
     {
-        var apiKey = _configuration["OpenAI:ApiKey"];
+        var settings = await GetOpenAiSettingsAsync();
+        var apiKey = settings.ApiKey;
 
         var requestBody = new
         {
@@ -92,7 +101,8 @@ public class AiService : IAiService
             .ToList();
 
         var transcript = string.Join("\n", chatMessages);
-        var model = conversation.Site.AiModel ?? _configuration["OpenAI:Model"] ?? "gpt-4o-mini";
+        var openAiSettings = await GetOpenAiSettingsAsync();
+        var model = conversation.Site.AiModel ?? openAiSettings.Model;
 
         var prompt = $@"Analyze the following customer support conversation and provide:
 1. A brief summary (2-3 sentences)
@@ -166,7 +176,8 @@ Respond in JSON format with keys: summary, sentiment, sentimentScore, topics, in
 
     public async Task<AnalyzeMessageResponse> AnalyzeMessageAsync(AnalyzeMessageRequest request)
     {
-        var model = _configuration["OpenAI:Model"] ?? "gpt-4o-mini";
+        var openAiSettings = await GetOpenAiSettingsAsync();
+        var model = openAiSettings.Model;
 
         var prompt = $@"Return ONLY valid JSON.
 
@@ -244,7 +255,8 @@ Customer message:
             .ToList();
 
         var transcript = string.Join("\n", chatMessages);
-        var model = conversation.Site.AiModel ?? _configuration["OpenAI:Model"] ?? "gpt-4o-mini";
+        var openAiSettings = await GetOpenAiSettingsAsync();
+        var model = conversation.Site.AiModel ?? openAiSettings.Model;
 
         // Get the last visitor message for knowledge base search
         var lastVisitorMessage = conversation.Messages
@@ -357,7 +369,8 @@ Respond in JSON format with keys: response, confidence, reasoning";
 
         var chatMessages = conversation.Messages.Where(m => !m.IsDeleted).ToList();
         var transcript = string.Join("\n", chatMessages.Select(m => $"{m.SenderType}: {m.Content}"));
-        var model = conversation.Site.AiModel ?? _configuration["OpenAI:Model"] ?? "gpt-4o-mini";
+        var openAiSettings = await GetOpenAiSettingsAsync();
+        var model = conversation.Site.AiModel ?? openAiSettings.Model;
 
         var prompt = $@"Summarize the following customer support conversation in 2-3 sentences, highlighting the main issue and resolution (if any):
 

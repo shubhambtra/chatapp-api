@@ -23,6 +23,14 @@ public class KnowledgeService : IKnowledgeService
     private const int CHUNK_OVERLAP_TOKENS = 50;
     private const int EMBEDDING_DIMENSIONS = 1536; // text-embedding-3-small
 
+    private async Task<(string? ApiKey, string Model)> GetOpenAiSettingsAsync()
+    {
+        var settings = await _context.AppConfigurations.FirstOrDefaultAsync();
+        var apiKey = settings?.OpenAiApiKey;
+        var model = settings?.OpenAiModel ?? "gpt-4o-mini";
+        return (apiKey, model);
+    }
+
     public KnowledgeService(
         ApplicationDbContext context,
         IConfiguration configuration,
@@ -433,7 +441,8 @@ public class KnowledgeService : IKnowledgeService
         contextBuilder.AppendLine("---");
 
         // Call GPT with augmented prompt
-        var model = _configuration["OpenAI:Model"] ?? "gpt-4o-mini";
+        var openAiSettings = await GetOpenAiSettingsAsync();
+        var model = openAiSettings.Model;
 
         var systemPrompt = @"You are a customer support assistant with STRICT limitations. You can ONLY answer questions using the EXACT information provided in the knowledge base content below.
 
@@ -651,7 +660,8 @@ Return ONLY valid JSON:
 
     private async Task<float[]> GenerateEmbeddingAsync(string text)
     {
-        var apiKey = _configuration["OpenAI:ApiKey"];
+        var settings = await GetOpenAiSettingsAsync();
+        var apiKey = settings.ApiKey;
 
         var requestBody = new
         {
@@ -713,7 +723,8 @@ Return ONLY valid JSON:
 
     private async Task<string> CallOpenAiAsync(string model, List<object> messages)
     {
-        var apiKey = _configuration["OpenAI:ApiKey"];
+        var settings = await GetOpenAiSettingsAsync();
+        var apiKey = settings.ApiKey;
 
         var requestBody = new
         {
