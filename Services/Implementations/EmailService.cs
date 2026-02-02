@@ -28,6 +28,7 @@ public class EmailService : IEmailService
     // Cached brand settings
     private string _brandName = "Assistica AI";
     private string _supportEmail = "support@assistica.com";
+    private string _frontendUrl = "";
 
     public EmailService(IConfiguration configuration, ILogger<EmailService> logger, ApplicationDbContext dbContext)
     {
@@ -81,6 +82,16 @@ public class EmailService : IEmailService
             {
                 _brandName = siteSettings.SiteName ?? "Assistica AI";
                 _supportEmail = siteSettings.SupportEmail ?? "support@assistica.com";
+            }
+
+            var appConfig = await _dbContext.AppConfigurations.FirstOrDefaultAsync();
+            if (appConfig != null && !string.IsNullOrEmpty(appConfig.AppFrontendUrl))
+            {
+                _frontendUrl = appConfig.AppFrontendUrl;
+            }
+            else
+            {
+                _frontendUrl = _configuration["App:FrontendUrl"] ?? _frontendUrl;
             }
         }
         catch (Exception ex)
@@ -178,6 +189,7 @@ public class EmailService : IEmailService
 
     public async Task SendTrialExpirationWarningAsync(string email, string username, string siteName, int daysRemaining, string? siteId = null, string? userId = null)
     {
+        await LoadBrandSettingsAsync();
         var subject = daysRemaining == 1
             ? $"Your {siteName} trial expires tomorrow!"
             : $"Your {siteName} trial expires in {daysRemaining} days";
@@ -187,6 +199,7 @@ public class EmailService : IEmailService
 
     public async Task SendTrialExpiredEmailAsync(string email, string username, string siteName, string? siteId = null, string? userId = null)
     {
+        await LoadBrandSettingsAsync();
         var subject = $"Your {siteName} trial has expired";
         var htmlBody = GetTrialExpiredTemplate(username, siteName);
         await SendEmailAsync(email, subject, htmlBody, null, "trial_expired", siteId, userId);
@@ -194,6 +207,7 @@ public class EmailService : IEmailService
 
     public async Task SendSubscriptionConfirmationAsync(string email, string username, string siteName, string planName, decimal amount, string? siteId = null, string? userId = null)
     {
+        await LoadBrandSettingsAsync();
         var subject = $"Subscription Confirmed - {planName} Plan for {siteName}";
         var htmlBody = GetSubscriptionConfirmationTemplate(username, siteName, planName, amount);
         await SendEmailAsync(email, subject, htmlBody, null, "subscription_confirmation", siteId, userId);
@@ -201,6 +215,7 @@ public class EmailService : IEmailService
 
     public async Task SendSubscriptionCancelledAsync(string email, string username, string siteName, DateTime endDate, string? siteId = null, string? userId = null)
     {
+        await LoadBrandSettingsAsync();
         var subject = $"Subscription Cancelled - {siteName}";
         var htmlBody = GetSubscriptionCancelledTemplate(username, siteName, endDate);
         await SendEmailAsync(email, subject, htmlBody, null, "subscription_cancelled", siteId, userId);
@@ -208,6 +223,7 @@ public class EmailService : IEmailService
 
     public async Task SendPaymentFailedAsync(string email, string username, string siteName, string reason, string? siteId = null, string? userId = null)
     {
+        await LoadBrandSettingsAsync();
         var subject = $"Payment Failed - Action Required for {siteName}";
         var htmlBody = GetPaymentFailedTemplate(username, siteName, reason);
         await SendEmailAsync(email, subject, htmlBody, null, "payment_failed", siteId, userId);
@@ -223,6 +239,7 @@ public class EmailService : IEmailService
 
     public async Task SendPlanExpirationWarningAsync(string email, string username, string siteName, string planName, int daysRemaining, bool isCancelled, string? siteId = null, string? userId = null)
     {
+        await LoadBrandSettingsAsync();
         var subject = daysRemaining == 1
             ? $"Your {planName} plan for {siteName} expires tomorrow!"
             : $"Your {planName} plan for {siteName} expires in {daysRemaining} days";
@@ -232,6 +249,7 @@ public class EmailService : IEmailService
 
     public async Task SendPlanExpiredEmailAsync(string email, string username, string siteName, string planName, string? siteId = null, string? userId = null)
     {
+        await LoadBrandSettingsAsync();
         var subject = $"Your {planName} plan for {siteName} has expired";
         var htmlBody = GetPlanExpiredTemplate(username, siteName, planName);
         await SendEmailAsync(email, subject, htmlBody, null, "plan_expired", siteId, userId);
@@ -298,7 +316,7 @@ public class EmailService : IEmailService
                 <li>Set up welcome messages</li>
                 <li>Invite team members</li>
             </ul>
-            <a href='#' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Go to Dashboard</a>";
+            <a href='{_frontendUrl}/site-admin-overview.html' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Go to Dashboard</a>";
         return GetBaseTemplate(content);
     }
 
@@ -322,7 +340,7 @@ public class EmailService : IEmailService
                 <li>Conversation history and analytics</li>
                 <li>Custom widget branding</li>
             </ul>
-            <a href='#' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Upgrade Now</a>";
+            <a href='{_frontendUrl}/site-admin-subscription.html' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Upgrade Now</a>";
         return GetBaseTemplate(content);
     }
 
@@ -341,7 +359,7 @@ public class EmailService : IEmailService
             <p style='margin: 0 0 24px 0; color: #475569; font-size: 16px; line-height: 1.6;'>
                 Don't worry - all your data is safe and will be available once you upgrade.
             </p>
-            <a href='#' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Upgrade Now</a>";
+            <a href='{_frontendUrl}/site-admin-subscription.html' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Upgrade Now</a>";
         return GetBaseTemplate(content);
     }
 
@@ -371,7 +389,7 @@ public class EmailService : IEmailService
                     <td style='padding: 12px 0; color: #1e293b; text-align: right; font-weight: 600;'>{siteName}</td>
                 </tr>
             </table>
-            <a href='#' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Go to Dashboard</a>";
+            <a href='{_frontendUrl}/site-admin-overview.html' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Go to Dashboard</a>";
         return GetBaseTemplate(content);
     }
 
@@ -390,7 +408,7 @@ public class EmailService : IEmailService
             <p style='margin: 0 0 24px 0; color: #475569; font-size: 16px; line-height: 1.6;'>
                 Changed your mind? You can reactivate your subscription anytime before the end date.
             </p>
-            <a href='#' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Reactivate Subscription</a>";
+            <a href='{_frontendUrl}/site-admin-subscription.html' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Reactivate Subscription</a>";
         return GetBaseTemplate(content);
     }
 
@@ -409,7 +427,7 @@ public class EmailService : IEmailService
             <p style='margin: 0 0 24px 0; color: #475569; font-size: 16px; line-height: 1.6;'>
                 Please update your payment method to avoid service interruption.
             </p>
-            <a href='#' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Update Payment Method</a>";
+            <a href='{_frontendUrl}/site-admin-billing.html' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Update Payment Method</a>";
         return GetBaseTemplate(content);
     }
 
@@ -457,7 +475,7 @@ public class EmailService : IEmailService
                 <li>Extended message history</li>
                 <li>Priority support</li>
             </ul>
-            <a href='#' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>{buttonText}</a>";
+            <a href='{_frontendUrl}/site-admin-subscription.html' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>{buttonText}</a>";
         return GetBaseTemplate(content);
     }
 
@@ -483,12 +501,13 @@ public class EmailService : IEmailService
                 <li>Extended message history</li>
                 <li>Priority customer support</li>
             </ul>
-            <a href='#' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Upgrade Now</a>";
+            <a href='{_frontendUrl}/site-admin-subscription.html' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Upgrade Now</a>";
         return GetBaseTemplate(content);
     }
 
     public async Task SendAutoPaySuccessEmailAsync(string email, string username, string siteName, string planName, decimal amount, string currency, DateTime nextPeriodEnd, string? siteId = null, string? userId = null)
     {
+        await LoadBrandSettingsAsync();
         var subject = $"Payment Successful - {planName} subscription renewed for {siteName}";
         var htmlBody = GetAutoPaySuccessTemplate(username, siteName, planName, amount, currency, nextPeriodEnd);
         await SendEmailAsync(email, subject, htmlBody, null, "autopay_success", siteId, userId);
@@ -496,6 +515,7 @@ public class EmailService : IEmailService
 
     public async Task SendAutoPayFailedEmailAsync(string email, string username, string siteName, string planName, string reason, DateTime periodEnd, string? siteId = null, string? userId = null)
     {
+        await LoadBrandSettingsAsync();
         var subject = $"Action Required: Auto-pay failed for {siteName}";
         var htmlBody = GetAutoPayFailedTemplate(username, siteName, planName, reason, periodEnd);
         await SendEmailAsync(email, subject, htmlBody, null, "autopay_failed", siteId, userId);
@@ -533,7 +553,7 @@ public class EmailService : IEmailService
             <p style='margin: 0 0 24px 0; color: #475569; font-size: 14px; line-height: 1.6;'>
                 Thank you for continuing to use {_brandName}! Your subscription will automatically renew on the date shown above.
             </p>
-            <a href='#' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>View Dashboard</a>";
+            <a href='{_frontendUrl}/site-admin-overview.html' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>View Dashboard</a>";
         return GetBaseTemplate(content);
     }
 
@@ -565,7 +585,7 @@ public class EmailService : IEmailService
                 <li>Ensure sufficient funds are available</li>
                 <li>Re-enable auto-pay after updating</li>
             </ul>
-            <a href='#' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Update Payment Method</a>
+            <a href='{_frontendUrl}/site-admin-billing.html' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Update Payment Method</a>
             <p style='margin: 24px 0 0 0; color: #64748b; font-size: 14px; line-height: 1.6;'>
                 Auto-pay has been temporarily disabled for this subscription. You can re-enable it after updating your payment method.
             </p>";
@@ -738,7 +758,7 @@ public class EmailService : IEmailService
                 This receipt serves as confirmation of your payment. Please keep this for your records.
             </p>
 
-            <a href='#' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Go to Dashboard</a>
+            <a href='{_frontendUrl}/site-admin-overview.html' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Go to Dashboard</a>
 
             <p style='margin: 24px 0 0 0; color: #94a3b8; font-size: 12px; line-height: 1.6;'>
                 If you have any questions about this payment, please contact our support team.
