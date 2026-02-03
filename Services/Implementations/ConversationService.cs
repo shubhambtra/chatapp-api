@@ -66,13 +66,26 @@ public class ConversationService : IConversationService
         var query = _context.Conversations
             .Include(c => c.Visitor)
             .Include(c => c.AssignedUser)
+            .Include(c => c.Analysis)
             .Where(c => c.SiteId == siteId);
 
         if (!string.IsNullOrEmpty(request.Status))
-            query = query.Where(c => c.Status == request.Status);
+        {
+            var statuses = request.Status.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            if (statuses.Count == 1)
+                query = query.Where(c => c.Status == statuses[0]);
+            else
+                query = query.Where(c => statuses.Contains(c.Status));
+        }
 
         if (!string.IsNullOrEmpty(request.Priority))
-            query = query.Where(c => c.Priority == request.Priority);
+        {
+            var priorities = request.Priority.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            if (priorities.Count == 1)
+                query = query.Where(c => c.Priority == priorities[0]);
+            else
+                query = query.Where(c => priorities.Contains(c.Priority));
+        }
 
         if (!string.IsNullOrEmpty(request.AssignedUserId))
             query = query.Where(c => c.AssignedUserId == request.AssignedUserId);
@@ -94,6 +107,48 @@ public class ConversationService : IConversationService
                 (c.Visitor.Email != null && c.Visitor.Email.Contains(request.Search)));
         }
 
+        // Advanced filters
+        if (!string.IsNullOrEmpty(request.Tags))
+        {
+            var tagList = request.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var tag in tagList)
+                query = query.Where(c => c.Tags.Contains(tag));
+        }
+
+        if (request.RatingMin.HasValue)
+            query = query.Where(c => c.Rating >= request.RatingMin.Value);
+
+        if (request.RatingMax.HasValue)
+            query = query.Where(c => c.Rating <= request.RatingMax.Value);
+
+        if (!string.IsNullOrEmpty(request.ResolutionStatus))
+        {
+            var resStatuses = request.ResolutionStatus.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            if (resStatuses.Count == 1)
+                query = query.Where(c => c.ResolutionStatus == resStatuses[0]);
+            else
+                query = query.Where(c => resStatuses.Contains(c.ResolutionStatus));
+        }
+
+        // AI filters
+        if (!string.IsNullOrEmpty(request.Sentiment))
+        {
+            var sentiments = request.Sentiment.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            if (sentiments.Count == 1)
+                query = query.Where(c => c.Analysis != null && c.Analysis.Sentiment == sentiments[0]);
+            else
+                query = query.Where(c => c.Analysis != null && sentiments.Contains(c.Analysis.Sentiment));
+        }
+
+        if (!string.IsNullOrEmpty(request.Intent))
+            query = query.Where(c => c.Analysis != null && c.Analysis.Intent == request.Intent);
+
+        if (request.UrgencyScoreMin.HasValue)
+            query = query.Where(c => c.Analysis != null && c.Analysis.UrgencyScore >= request.UrgencyScoreMin.Value);
+
+        if (request.UrgencyScoreMax.HasValue)
+            query = query.Where(c => c.Analysis != null && c.Analysis.UrgencyScore <= request.UrgencyScoreMax.Value);
+
         var totalItems = await query.CountAsync();
         var conversations = await query
             .OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt)
@@ -110,6 +165,14 @@ public class ConversationService : IConversationService
                 .Select(m => m.Content)
                 .FirstOrDefaultAsync();
 
+            List<string>? convTags = null;
+            try
+            {
+                if (!string.IsNullOrEmpty(conv.Tags) && conv.Tags != "[]")
+                    convTags = JsonSerializer.Deserialize<List<string>>(conv.Tags);
+            }
+            catch { }
+
             dtos.Add(new ConversationListDto
             {
                 Id = conv.Id,
@@ -123,10 +186,19 @@ public class ConversationService : IConversationService
                 Subject = conv.Subject,
                 LastMessagePreview = lastMessage != null && lastMessage.Length > 100 ? lastMessage[..100] + "..." : lastMessage,
                 MessageCount = conv.MessageCount,
-                UnreadCount = 0, // UnreadCount - would need to calculate based on user
+                UnreadCount = 0,
                 LastMessageAt = conv.LastMessageAt,
                 CreatedAt = conv.CreatedAt,
-                SiteId = conv.SiteId
+                SiteId = conv.SiteId,
+                // Advanced fields
+                Tags = convTags,
+                Rating = conv.Rating,
+                ResolutionStatus = conv.ResolutionStatus,
+                // AI fields
+                Sentiment = conv.Analysis?.Sentiment,
+                SentimentScore = conv.Analysis?.SentimentScore,
+                Intent = conv.Analysis?.Intent,
+                UrgencyScore = conv.Analysis?.UrgencyScore
             });
         }
 
