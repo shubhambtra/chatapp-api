@@ -43,6 +43,16 @@ public class ConversationListDto
     public DateTime CreatedAt { get; set; }
     public string? SiteId { get; set; }
     public string? SiteName { get; set; }
+    // Advanced filter fields
+    public List<string>? Tags { get; set; }
+    public int? Rating { get; set; }
+    public string? RatingFeedback { get; set; }
+    public string? ResolutionStatus { get; set; }
+    // AI fields
+    public string? Sentiment { get; set; }
+    public double? SentimentScore { get; set; }
+    public string? Intent { get; set; }
+    public double? UrgencyScore { get; set; }
 }
 
 public record CreateConversationRequest(
@@ -92,12 +102,22 @@ public record ConversationListRequest(
     int Page = 1,
     int PageSize = 20,
     string? Status = "",
-    string? Priority ="",
-    string? AssignedUserId= "",
-    string? VisitorId = ""                  ,
+    string? Priority = "",
+    string? AssignedUserId = "",
+    string? VisitorId = "",
     DateTime? From = null,
-    DateTime? To =  null   ,
-    string? Search= ""
+    DateTime? To = null,
+    string? Search = "",
+    // Advanced filters
+    string? Tags = null,
+    int? RatingMin = null,
+    int? RatingMax = null,
+    string? ResolutionStatus = null,
+    // AI filters
+    string? Sentiment = null,
+    string? Intent = null,
+    double? UrgencyScoreMin = null,
+    double? UrgencyScoreMax = null
 );
 
 // Conversation Comments

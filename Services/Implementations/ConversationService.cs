@@ -193,6 +193,7 @@ public class ConversationService : IConversationService
                 // Advanced fields
                 Tags = convTags,
                 Rating = conv.Rating,
+                RatingFeedback = conv.Feedback,
                 ResolutionStatus = conv.ResolutionStatus,
                 // AI fields
                 Sentiment = conv.Analysis?.Sentiment,
