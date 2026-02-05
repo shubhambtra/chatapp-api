@@ -11,6 +11,8 @@ public record SiteDto(
     string Timezone,
     bool AiEnabled,
     string AiModel,
+    bool AutoReplyEnabled,
+    bool AnalysisEnabled,
     WidgetConfigDto? WidgetConfig,
     SubscriptionDto? CurrentSubscription,
     DateTime CreatedAt
@@ -48,7 +50,9 @@ public record UpdateSiteRequest(
     bool? AiEnabled,
     string? AiModel,
     int? MaxFileSizeMb,
-    string? AllowedFileTypes
+    string? AllowedFileTypes,
+    bool? AutoReplyEnabled,
+    bool? AnalysisEnabled
 );
 
 public record WidgetConfigDto(
@@ -95,7 +99,8 @@ public record SiteAgentDto(
 );
 
 public record AddAgentToSiteRequest(
-    string UserId,
+    string? UserId = null,
+    string? Email = null,
     bool CanView = true,
     bool CanRespond = true,
     bool CanCloseConversations = true,

@@ -199,6 +199,8 @@ public class SiteService : ISiteService
         if (request.AiModel != null) site.AiModel = request.AiModel;
         if (request.MaxFileSizeMb.HasValue) site.MaxFileSizeMb = request.MaxFileSizeMb.Value;
         if (request.AllowedFileTypes != null) site.AllowedFileTypes = request.AllowedFileTypes;
+        if (request.AutoReplyEnabled.HasValue) site.AutoReplyEnabled = request.AutoReplyEnabled.Value;
+        if (request.AnalysisEnabled.HasValue) site.AnalysisEnabled = request.AnalysisEnabled.Value;
 
         await _context.SaveChangesAsync();
 
@@ -272,9 +274,14 @@ public class SiteService : ISiteService
 
     public async Task<List<SiteAgentDto>> GetSiteAgentsAsync(string siteId)
     {
+        // Get the site to find the owner
+        var site = await _context.Sites.FindAsync(siteId);
+        if (site == null) throw new KeyNotFoundException("Site not found");
+
+        // Get all agents except the site owner
         var userSites = await _context.UserSites
             .Include(us => us.User)
-            .Where(us => us.SiteId == siteId)
+            .Where(us => us.SiteId == siteId && us.UserId != site.OwnerUserId)
             .ToListAsync();
 
         return userSites.Select(us => new SiteAgentDto(
@@ -304,16 +311,26 @@ public class SiteService : ISiteService
             throw new InvalidOperationException(reason ?? $"Agent limit reached ({current}/{limit})");
         }
 
-        var user = await _context.Users.FindAsync(request.UserId);
-        if (user == null) throw new KeyNotFoundException("User not found");
+        // Find user by UserId or Email
+        User? user = null;
+        if (!string.IsNullOrEmpty(request.UserId))
+        {
+            user = await _context.Users.FindAsync(request.UserId);
+        }
+        else if (!string.IsNullOrEmpty(request.Email))
+        {
+            user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+        }
+
+        if (user == null) throw new KeyNotFoundException("User not found. Please ensure the user has registered an account first.");
 
         var existing = await _context.UserSites
-            .FirstOrDefaultAsync(us => us.SiteId == siteId && us.UserId == request.UserId);
+            .FirstOrDefaultAsync(us => us.SiteId == siteId && us.UserId == user.Id);
         if (existing != null) throw new InvalidOperationException("User already assigned to site");
 
         var userSite = new UserSite
         {
-            UserId = request.UserId,
+            UserId = user.Id,
             SiteId = siteId,
             CanView = request.CanView,
             CanRespond = request.CanRespond,
@@ -480,6 +497,8 @@ public class SiteService : ISiteService
             site.Timezone,
             site.AiEnabled,
             site.AiModel,
+            site.AutoReplyEnabled,
+            site.AnalysisEnabled,
             ParseWidgetConfig(site.WidgetConfig),
             subscription != null ? new SubscriptionDto(
                 subscription.Id,
