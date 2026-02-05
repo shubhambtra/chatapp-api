@@ -350,7 +350,7 @@ public class SiteService : ISiteService
                     Email = request.Email,
                     Username = username,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                    Role = "agent",
+                    Role = "support_agent",
                     Status = "offline"
                 };
 
