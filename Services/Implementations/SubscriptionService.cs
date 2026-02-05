@@ -938,10 +938,11 @@ public class SubscriptionService : ISubscriptionService
                         ur.PeriodEnd <= subscription.CurrentPeriodEnd)
             .SumAsync(ur => ur.Quantity);
 
-        // For agents, count current agents instead of usage records
+        // For agents, count current agents instead of usage records (excluding site owner)
         if (metricName == "agents")
         {
-            currentUsage = await _context.UserSites.CountAsync(us => us.SiteId == siteId);
+            var site = await _context.Sites.FindAsync(siteId);
+            currentUsage = await _context.UserSites.CountAsync(us => us.SiteId == siteId && us.UserId != site.OwnerUserId);
         }
 
         int? limit = metricName switch
