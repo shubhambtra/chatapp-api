@@ -101,6 +101,7 @@ public record SiteAgentDto(
 public record AddAgentToSiteRequest(
     string? UserId = null,
     string? Email = null,
+    string? Password = null,
     bool CanView = true,
     bool CanRespond = true,
     bool CanCloseConversations = true,

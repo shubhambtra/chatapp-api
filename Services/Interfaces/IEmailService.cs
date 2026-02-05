@@ -13,6 +13,7 @@ public interface IEmailService
     Task SendSubscriptionCancelledAsync(string email, string username, string siteName, DateTime endDate);
     Task SendPaymentFailedAsync(string email, string username, string siteName, string reason);
     Task SendPasswordResetAsync(string email, string username, string resetLink);
+    Task SendAgentCredentialsEmailAsync(string email, string username, string password, string siteName);
 
     // Plan/Subscription expiration emails
     Task SendPlanExpirationWarningAsync(string email, string username, string siteName, string planName, int daysRemaining, bool isCancelled);

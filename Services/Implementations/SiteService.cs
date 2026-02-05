@@ -12,11 +12,13 @@ public class SiteService : ISiteService
 {
     private readonly ApplicationDbContext _context;
     private readonly ISubscriptionService _subscriptionService;
+    private readonly IEmailService _emailService;
 
-    public SiteService(ApplicationDbContext context, ISubscriptionService subscriptionService)
+    public SiteService(ApplicationDbContext context, ISubscriptionService subscriptionService, IEmailService emailService)
     {
         _context = context;
         _subscriptionService = subscriptionService;
+        _emailService = emailService;
     }
 
     public async Task<SiteDto> CreateSiteAsync(string userId, CreateSiteRequest request)
@@ -311,8 +313,15 @@ public class SiteService : ISiteService
             throw new InvalidOperationException(reason ?? $"Agent limit reached ({current}/{limit})");
         }
 
+        // Get site info for email
+        var site = await _context.Sites.FindAsync(siteId);
+        if (site == null) throw new KeyNotFoundException("Site not found");
+
         // Find user by UserId or Email
         User? user = null;
+        bool isNewUser = false;
+        string? plainPassword = null;
+
         if (!string.IsNullOrEmpty(request.UserId))
         {
             user = await _context.Users.FindAsync(request.UserId);
@@ -320,9 +329,43 @@ public class SiteService : ISiteService
         else if (!string.IsNullOrEmpty(request.Email))
         {
             user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+
+            // If user not found and password is provided, create new user
+            if (user == null && !string.IsNullOrEmpty(request.Password))
+            {
+                // Generate username from email (part before @)
+                var username = request.Email.Split('@')[0];
+
+                // Check if username exists, append number if so
+                var baseUsername = username;
+                var counter = 1;
+                while (await _context.Users.AnyAsync(u => u.Username == username))
+                {
+                    username = $"{baseUsername}{counter}";
+                    counter++;
+                }
+
+                user = new User
+                {
+                    Email = request.Email,
+                    Username = username,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                    Role = "agent",
+                    Status = "offline"
+                };
+
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+
+                isNewUser = true;
+                plainPassword = request.Password;
+            }
         }
 
-        if (user == null) throw new KeyNotFoundException("User not found. Please ensure the user has registered an account first.");
+        if (user == null)
+        {
+            throw new KeyNotFoundException("User not found. Please provide email and password to create a new agent account.");
+        }
 
         var existing = await _context.UserSites
             .FirstOrDefaultAsync(us => us.SiteId == siteId && us.UserId == user.Id);
@@ -340,6 +383,24 @@ public class SiteService : ISiteService
 
         _context.UserSites.Add(userSite);
         await _context.SaveChangesAsync();
+
+        // Send credentials email to new user
+        if (isNewUser && !string.IsNullOrEmpty(plainPassword))
+        {
+            try
+            {
+                await _emailService.SendAgentCredentialsEmailAsync(
+                    user.Email,
+                    user.Username,
+                    plainPassword,
+                    site.Name
+                );
+            }
+            catch (Exception)
+            {
+                // Log but don't fail if email fails
+            }
+        }
 
         return new SiteAgentDto(
             user.Id,

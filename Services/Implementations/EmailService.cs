@@ -237,6 +237,19 @@ public class EmailService : IEmailService
         await SendEmailAsync(email, subject, htmlBody, null, "password_reset", null, userId);
     }
 
+    public async Task SendAgentCredentialsEmailAsync(string email, string username, string password, string siteName, string? siteId = null, string? userId = null)
+    {
+        await LoadBrandSettingsAsync();
+        var subject = $"You've been added as an agent on {siteName}";
+        var htmlBody = GetAgentCredentialsTemplate(username, email, password, siteName);
+        await SendEmailAsync(email, subject, htmlBody, null, "agent_credentials", siteId, userId);
+    }
+
+    public Task SendAgentCredentialsEmailAsync(string email, string username, string password, string siteName)
+    {
+        return SendAgentCredentialsEmailAsync(email, username, password, siteName, null, null);
+    }
+
     public async Task SendPlanExpirationWarningAsync(string email, string username, string siteName, string planName, int daysRemaining, bool isCancelled, string? siteId = null, string? userId = null)
     {
         await LoadBrandSettingsAsync();
@@ -442,6 +455,39 @@ public class EmailService : IEmailService
             <p style='margin: 24px 0 0 0; color: #64748b; font-size: 14px; line-height: 1.6;'>
                 This link will expire in 24 hours. If you didn't request this, you can safely ignore this email.
             </p>";
+        return GetBaseTemplate(content);
+    }
+
+    private string GetAgentCredentialsTemplate(string username, string email, string password, string siteName)
+    {
+        var content = $@"
+            <h2 style='margin: 0 0 16px 0; color: #1e293b; font-size: 24px;'>Welcome to the Team!</h2>
+            <div style='background-color: #dcfce7; border-left: 4px solid #22c55e; padding: 16px 20px; margin-bottom: 24px; border-radius: 0 8px 8px 0;'>
+                <p style='margin: 0; color: #166534; font-size: 16px; font-weight: 600;'>
+                    You've been added as a support agent on <strong>{siteName}</strong>
+                </p>
+            </div>
+            <p style='margin: 0 0 24px 0; color: #475569; font-size: 16px; line-height: 1.6;'>
+                Hi {username}, an account has been created for you to help manage customer conversations. Here are your login credentials:
+            </p>
+            <div style='background-color: #f8fafc; border-radius: 8px; padding: 20px; margin-bottom: 24px;'>
+                <table style='width: 100%; border-collapse: collapse;'>
+                    <tr>
+                        <td style='padding: 8px 0; color: #64748b; font-size: 14px;'>Email</td>
+                        <td style='padding: 8px 0; color: #1e293b; text-align: right; font-weight: 600;'>{email}</td>
+                    </tr>
+                    <tr>
+                        <td style='padding: 8px 0; color: #64748b; font-size: 14px;'>Password</td>
+                        <td style='padding: 8px 0; color: #1e293b; text-align: right; font-weight: 600; font-family: monospace;'>{password}</td>
+                    </tr>
+                </table>
+            </div>
+            <div style='background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;'>
+                <p style='margin: 0; color: #92400e; font-size: 14px;'>
+                    <strong>Important:</strong> We recommend changing your password after your first login.
+                </p>
+            </div>
+            <a href='{_frontendUrl}/login.html' style='display: inline-block; background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;'>Login Now</a>";
         return GetBaseTemplate(content);
     }
 
