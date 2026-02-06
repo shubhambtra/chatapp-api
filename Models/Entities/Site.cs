@@ -40,6 +40,9 @@ public class Site : BaseEntity
     // Widget config
     public string WidgetConfig { get; set; } = "{}";
 
+    // Onboarding state
+    public string? OnboardingState { get; set; }
+
     // Settings
     public string Status { get; set; } = "active";
     public string Timezone { get; set; } = "UTC";
@@ -48,6 +51,10 @@ public class Site : BaseEntity
     // AI settings
     public bool AiEnabled { get; set; } = true;
     public string AiModel { get; set; } = "gpt-4o-mini";
+
+    // AI toggle states (per-site operational settings)
+    public bool AutoReplyEnabled { get; set; } = false;
+    public bool AnalysisEnabled { get; set; } = false;
 
     // File settings
     public int MaxFileSizeMb { get; set; } = 10;

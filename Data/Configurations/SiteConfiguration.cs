@@ -37,6 +37,7 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
 
         builder.Property(s => s.StripeCustomerId).HasMaxLength(100);
         builder.Property(s => s.WidgetConfig).HasColumnType("nvarchar(max)");
+        builder.Property(s => s.OnboardingState).HasColumnType("nvarchar(max)");
         builder.Property(s => s.Status).IsRequired().HasMaxLength(20).HasDefaultValue("active");
         builder.Property(s => s.Timezone).IsRequired().HasMaxLength(50).HasDefaultValue("UTC");
         builder.Property(s => s.BusinessHours).HasColumnType("nvarchar(max)");

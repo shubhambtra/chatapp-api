@@ -14,6 +14,7 @@ public record SiteDto(
     bool AutoReplyEnabled,
     bool AnalysisEnabled,
     WidgetConfigDto? WidgetConfig,
+    string? OnboardingState,
     SubscriptionDto? CurrentSubscription,
     DateTime CreatedAt
 )
@@ -52,7 +53,8 @@ public record UpdateSiteRequest(
     int? MaxFileSizeMb,
     string? AllowedFileTypes,
     bool? AutoReplyEnabled,
-    bool? AnalysisEnabled
+    bool? AnalysisEnabled,
+    string? OnboardingState
 );
 
 public record WidgetConfigDto(

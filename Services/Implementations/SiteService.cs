@@ -203,6 +203,7 @@ public class SiteService : ISiteService
         if (request.AllowedFileTypes != null) site.AllowedFileTypes = request.AllowedFileTypes;
         if (request.AutoReplyEnabled.HasValue) site.AutoReplyEnabled = request.AutoReplyEnabled.Value;
         if (request.AnalysisEnabled.HasValue) site.AnalysisEnabled = request.AnalysisEnabled.Value;
+        if (request.OnboardingState != null) site.OnboardingState = request.OnboardingState;
 
         await _context.SaveChangesAsync();
 
@@ -561,6 +562,7 @@ public class SiteService : ISiteService
             site.AutoReplyEnabled,
             site.AnalysisEnabled,
             ParseWidgetConfig(site.WidgetConfig),
+            site.OnboardingState,
             subscription != null ? new SubscriptionDto(
                 subscription.Id,
                 subscription.SiteId,

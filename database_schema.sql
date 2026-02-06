@@ -108,6 +108,10 @@ CREATE TABLE dbo.sites (
     ai_enabled BIT DEFAULT 1,
     ai_model NVARCHAR(50) DEFAULT 'gpt-4o-mini',
 
+    -- AI toggle states (per-site operational settings)
+    auto_reply_enabled BIT DEFAULT 0,
+    analysis_enabled BIT DEFAULT 0,
+
     -- File settings
     max_file_size_mb INT DEFAULT 10,
     allowed_file_types NVARCHAR(500) DEFAULT '.jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt,.zip',
