@@ -80,6 +80,7 @@ public class MessageService : IMessageService
     {
         var query = _context.Messages
             .Include(m => m.File)
+            .Include(m => m.ReadReceipts)
             .Where(m => m.ConversationId == conversationId && !m.IsDeleted);
 
         if (!string.IsNullOrEmpty(request.Before))
@@ -188,6 +189,7 @@ public class MessageService : IMessageService
     {
         var message = await _context.Messages
             .Include(m => m.File)
+            .Include(m => m.ReadReceipts)
             .FirstOrDefaultAsync(m => m.Id == messageId);
 
         if (message == null) throw new KeyNotFoundException("Message not found");
@@ -227,6 +229,14 @@ public class MessageService : IMessageService
         }
         catch { }
 
+        // Determine read status from the opposite party's read receipts
+        // For agent messages: look for visitor reads. For visitor messages: look for agent reads.
+        var oppositeReaderType = message.SenderType == "visitor" ? "agent" : "visitor";
+        DateTime? readAt = message.ReadReceipts?
+            .Where(r => r.ReaderType == oppositeReaderType)
+            .Select(r => (DateTime?)r.ReadAt)
+            .Min();
+
         return new MessageDto(
             message.Id,
             message.ConversationId,
@@ -250,7 +260,9 @@ public class MessageService : IMessageService
             metadata,
             message.IsEdited,
             message.EditedAt,
-            message.CreatedAt
+            message.CreatedAt,
+            message.DeliveredAt,
+            readAt
         );
     }
 }

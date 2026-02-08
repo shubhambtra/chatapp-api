@@ -21,6 +21,8 @@ public class MessageConfiguration : IEntityTypeConfiguration<Message>
         builder.Property(m => m.FileId).HasMaxLength(36);
         builder.Property(m => m.Metadata).HasColumnType("nvarchar(max)");
 
+        builder.Property(m => m.DeliveredAt).IsRequired(false);
+
         builder.HasOne(m => m.Conversation)
             .WithMany(c => c.Messages)
             .HasForeignKey(m => m.ConversationId)

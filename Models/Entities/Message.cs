@@ -20,6 +20,9 @@ public class Message : BaseEntity
     // Metadata
     public string? Metadata { get; set; }
 
+    // Delivery status
+    public DateTime? DeliveredAt { get; set; }
+
     // Status
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAt { get; set; }

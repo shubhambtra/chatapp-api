@@ -13,7 +13,9 @@ public record MessageDto(
     Dictionary<string, object>? Metadata,
     bool IsEdited,
     DateTime? EditedAt,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    DateTime? DeliveredAt,
+    DateTime? ReadAt
 );
 
 public record SendMessageRequest(
