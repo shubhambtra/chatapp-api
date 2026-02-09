@@ -104,6 +104,8 @@ public record AddAgentToSiteRequest(
     string? UserId = null,
     string? Email = null,
     string? Password = null,
+    string? FirstName = null,
+    string? LastName = null,
     bool CanView = true,
     bool CanRespond = true,
     bool CanCloseConversations = true,

@@ -13,12 +13,14 @@ public class SiteService : ISiteService
     private readonly ApplicationDbContext _context;
     private readonly ISubscriptionService _subscriptionService;
     private readonly IEmailService _emailService;
+    private readonly IErrorLogService _errorLogService;
 
-    public SiteService(ApplicationDbContext context, ISubscriptionService subscriptionService, IEmailService emailService)
+    public SiteService(ApplicationDbContext context, ISubscriptionService subscriptionService, IEmailService emailService, IErrorLogService errorLogService)
     {
         _context = context;
         _subscriptionService = subscriptionService;
         _emailService = emailService;
+        _errorLogService = errorLogService;
     }
 
     public async Task<SiteDto> CreateSiteAsync(string userId, CreateSiteRequest request)
@@ -350,6 +352,8 @@ public class SiteService : ISiteService
                 {
                     Email = request.Email,
                     Username = username,
+                    FirstName = request.FirstName,
+                    LastName = request.LastName,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                     Role = "support_agent",
                     Status = "offline"
@@ -397,9 +401,10 @@ public class SiteService : ISiteService
                     site.Name
                 );
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 // Log but don't fail if email fails
+                await _errorLogService.LogErrorAsync(ex, null, "Warning");
             }
         }
 
