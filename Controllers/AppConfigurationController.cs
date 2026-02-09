@@ -145,7 +145,7 @@ public class AppConfigurationController : ControllerBase
             // CORS
             CorsAllowedOrigins = string.Join(",", _configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>()),
             // App
-            AppFrontendUrl = _configuration["App:FrontendUrl"] ?? "http://localhost:8000",
+            AppFrontendUrl = _configuration["App:FrontendUrl"] ?? "",
             AppPasswordResetTokenExpirationHours = int.TryParse(_configuration["App:PasswordResetTokenExpirationHours"], out var prExp) ? prExp : 24,
             // Trial
             TrialDaysBeforeExpirationToNotify = string.Join(",", _configuration.GetSection("TrialSettings:DaysBeforeExpirationToNotify").Get<int[]>() ?? new[] { 7, 3, 1 }),

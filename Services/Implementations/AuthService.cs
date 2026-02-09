@@ -17,19 +17,21 @@ public class AuthService : IAuthService
     private readonly IConfiguration _configuration;
     private readonly IEmailService _emailService;
     private readonly ILogger<AuthService> _logger;
+    private readonly IErrorLogService _errorLogService;
 
-    public AuthService(ApplicationDbContext context, IConfiguration configuration, IEmailService emailService, ILogger<AuthService> logger)
+    public AuthService(ApplicationDbContext context, IConfiguration configuration, IEmailService emailService, ILogger<AuthService> logger, IErrorLogService errorLogService)
     {
         _context = context;
         _configuration = configuration;
         _emailService = emailService;
         _logger = logger;
+        _errorLogService = errorLogService;
     }
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request)
     {
         var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == request.Email && u.IsActive);
+            .FirstOrDefaultAsync(u => (u.Email == request.Email || u.Username == request.Email) && u.IsActive);
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
@@ -84,6 +86,7 @@ public class AuthService : IAuthService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send welcome email to {Email}", user.Email);
+            await _errorLogService.LogErrorAsync(ex, null, "Warning");
         }
 
         // Auto-login after registration
@@ -179,8 +182,11 @@ public class AuthService : IAuthService
 
             await _context.SaveChangesAsync();
 
-            // Build reset link
-            var frontendUrl = _configuration.GetValue<string>("App:FrontendUrl") ?? "http://localhost:8000";
+            // Build reset link — prefer DB AppConfiguration, fall back to appsettings.json
+            var appConfig = await _context.AppConfigurations.FirstOrDefaultAsync(c => c.IsActive);
+            var frontendUrl = (appConfig?.AppFrontendUrl
+                ?? _configuration.GetValue<string>("App:FrontendUrl")
+                ?? "").TrimEnd('/');
             var resetLink = $"{frontendUrl}/reset-password.html?token={resetToken}";
 
             // Send email
@@ -192,6 +198,7 @@ public class AuthService : IAuthService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send password reset email to {Email}", user.Email);
+                await _errorLogService.LogErrorAsync(ex, null, "Warning");
                 // Don't throw - we don't want to reveal if email exists
             }
         }
@@ -269,7 +276,7 @@ public class AuthService : IAuthService
     public async Task<SupportLoginResponse> SupportLoginAsync(SupportLoginRequest request)
     {
         var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.Username == request.Username && u.IsActive);
+            .FirstOrDefaultAsync(u => (u.Username == request.Username || u.Email == request.Username) && u.IsActive);
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {

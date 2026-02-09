@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ChatApp.API.Data;
 using ChatApp.API.Models.DTOs;
 using ChatApp.API.Services.Interfaces;
 
@@ -12,10 +14,14 @@ namespace ChatApp.API.Controllers;
 public class SitesController : ControllerBase
 {
     private readonly ISiteService _siteService;
+    private readonly IEmailService _emailService;
+    private readonly ApplicationDbContext _context;
 
-    public SitesController(ISiteService siteService)
+    public SitesController(ISiteService siteService, IEmailService emailService, ApplicationDbContext context)
     {
         _siteService = siteService;
+        _emailService = emailService;
+        _context = context;
     }
 
     [HttpGet]
@@ -296,6 +302,30 @@ public class SitesController : ControllerBase
         return Ok(ApiResponse<object>.Ok(null, "Messages reordered"));
     }
 
+    [HttpPost("{siteId}/send-email")]
+    public async Task<ActionResult<ApiResponse<string>>> SendEmail(string siteId, [FromBody] SendSiteEmailRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.To))
+            return BadRequest(ApiResponse<string>.Fail("Recipient email is required"));
+        if (string.IsNullOrWhiteSpace(request.Subject))
+            return BadRequest(ApiResponse<string>.Fail("Subject is required"));
+        if (string.IsNullOrWhiteSpace(request.Body))
+            return BadRequest(ApiResponse<string>.Fail("Message body is required"));
+
+        var htmlBody = $@"
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                <div style='background: linear-gradient(135deg, #0ea5e9, #2563eb); padding: 24px; border-radius: 12px 12px 0 0;'>
+                    <h2 style='color: white; margin: 0;'>{System.Net.WebUtility.HtmlEncode(request.Subject)}</h2>
+                </div>
+                <div style='padding: 24px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;'>
+                    <p style='color: #374151; line-height: 1.6; white-space: pre-wrap;'>{System.Net.WebUtility.HtmlEncode(request.Body)}</p>
+                </div>
+            </div>";
+
+        await _emailService.SendEmailAsync(request.To, request.Subject, htmlBody, request.Body);
+        return Ok(ApiResponse<string>.Ok("Email sent successfully"));
+    }
+
     // Supervisor Overview
     [HttpGet("{siteId}/supervisor/overview")]
     public async Task<ActionResult<ApiResponse<SupervisorOverviewDto>>> GetSupervisorOverview(string siteId)
@@ -310,4 +340,38 @@ public class SitesController : ControllerBase
             return NotFound(ApiResponse<SupervisorOverviewDto>.Fail(ex.Message));
         }
     }
+    // Onboarding
+    [HttpGet("{siteId}/onboarding")]
+    public async Task<ActionResult<ApiResponse<object>>> GetOnboarding(string siteId)
+    {
+        var site = await _context.Sites.FindAsync(siteId);
+        if (site == null)
+            return NotFound(ApiResponse<object>.Fail("Site not found"));
+
+        object? state = null;
+        if (!string.IsNullOrEmpty(site.OnboardingState))
+        {
+            state = JsonSerializer.Deserialize<object>(site.OnboardingState);
+        }
+
+        return Ok(ApiResponse<object>.Ok(state));
+    }
+
+    [HttpPut("{siteId}/onboarding")]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateOnboarding(
+        string siteId,
+        [FromBody] JsonElement body)
+    {
+        var site = await _context.Sites.FindAsync(siteId);
+        if (site == null)
+            return NotFound(ApiResponse<object>.Fail("Site not found"));
+
+        site.OnboardingState = body.GetRawText();
+        site.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return Ok(ApiResponse<object>.Ok(null, "Onboarding state updated"));
+    }
 }
+
+public record SendSiteEmailRequest(string To, string Subject, string Body, string? VisitorId = null);
