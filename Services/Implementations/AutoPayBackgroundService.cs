@@ -34,6 +34,13 @@ public class AutoPayBackgroundService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while processing auto-payments");
+                try
+                {
+                    using var errorScope = _serviceProvider.CreateScope();
+                    var errorLogService = errorScope.ServiceProvider.GetRequiredService<IErrorLogService>();
+                    await errorLogService.LogErrorAsync(ex, null, "Error");
+                }
+                catch { /* error logging should never crash the app */ }
             }
 
             // Check every 6 hours (configurable)
@@ -198,6 +205,13 @@ public class AutoPayBackgroundService : BackgroundService
             _logger.LogError(ex, "Error processing auto-pay for subscription {SubscriptionId}", subscription.Id);
             await paymentLogService.LogFailureAsync(paymentLog, ex.Message, "EXCEPTION", ex.StackTrace);
             await HandleAutoPayFailureAsync(subscription, ex.Message, dbContext, emailService, notificationKey, user);
+            try
+            {
+                using var errorScope = _serviceProvider.CreateScope();
+                var errorLogService = errorScope.ServiceProvider.GetRequiredService<IErrorLogService>();
+                await errorLogService.LogErrorAsync(ex, null, "Error");
+            }
+            catch { }
         }
     }
 
@@ -236,6 +250,13 @@ public class AutoPayBackgroundService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Razorpay auto-payment failed");
+            try
+            {
+                using var errorScope = _serviceProvider.CreateScope();
+                var errorLogService = errorScope.ServiceProvider.GetRequiredService<IErrorLogService>();
+                await errorLogService.LogErrorAsync(ex, null, "Error");
+            }
+            catch { }
             return (false, null, ex.Message);
         }
     }
@@ -275,6 +296,13 @@ public class AutoPayBackgroundService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "PayPal auto-payment failed");
+            try
+            {
+                using var errorScope = _serviceProvider.CreateScope();
+                var errorLogService = errorScope.ServiceProvider.GetRequiredService<IErrorLogService>();
+                await errorLogService.LogErrorAsync(ex, null, "Error");
+            }
+            catch { }
             return (false, null, ex.Message);
         }
     }
@@ -399,6 +427,13 @@ public class AutoPayBackgroundService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send auto-pay success email to {Email}", user.Email);
+                try
+                {
+                    using var errorScope = _serviceProvider.CreateScope();
+                    var errorLogService = errorScope.ServiceProvider.GetRequiredService<IErrorLogService>();
+                    await errorLogService.LogErrorAsync(ex, null, "Warning");
+                }
+                catch { }
             }
         }
     }
@@ -444,6 +479,13 @@ public class AutoPayBackgroundService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send auto-pay failure email to {Email}", user.Email);
+                try
+                {
+                    using var errorScope = _serviceProvider.CreateScope();
+                    var errorLogService = errorScope.ServiceProvider.GetRequiredService<IErrorLogService>();
+                    await errorLogService.LogErrorAsync(ex, null, "Warning");
+                }
+                catch { }
             }
         }
     }

@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -6,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using ChatApp.API.Data;
 using ChatApp.API.Models.DTOs;
 using ChatApp.API.Models.Entities;
+using ChatApp.API.Plugins;
 using ChatApp.API.Services.Interfaces;
 using DocumentFormat.OpenXml.Packaging;
 using UglyToad.PdfPig;
@@ -16,31 +16,34 @@ public class KnowledgeService : IKnowledgeService
 {
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
-    private readonly HttpClient _httpClient;
     private readonly IWebHostEnvironment _environment;
+    private readonly IErrorLogService _errorLogService;
+    private readonly ISemanticKernelFactory _kernelFactory;
+    private readonly QueryRewritePlugin _queryRewritePlugin;
+    private readonly KnowledgeSearchPlugin _knowledgeSearchPlugin;
+    private readonly ResponseGenerationPlugin _responseGenerationPlugin;
 
     private const int CHUNK_SIZE_TOKENS = 500;
     private const int CHUNK_OVERLAP_TOKENS = 50;
-    private const int EMBEDDING_DIMENSIONS = 1536; // text-embedding-3-small
-
-    private async Task<(string? ApiKey, string Model)> GetOpenAiSettingsAsync()
-    {
-        var settings = await _context.AppConfigurations.FirstOrDefaultAsync();
-        var apiKey = settings?.OpenAiApiKey;
-        var model = settings?.OpenAiModel ?? "gpt-4o-mini";
-        return (apiKey, model);
-    }
 
     public KnowledgeService(
         ApplicationDbContext context,
         IConfiguration configuration,
-        IHttpClientFactory httpClientFactory,
-        IWebHostEnvironment environment)
+        IWebHostEnvironment environment,
+        IErrorLogService errorLogService,
+        ISemanticKernelFactory kernelFactory,
+        QueryRewritePlugin queryRewritePlugin,
+        KnowledgeSearchPlugin knowledgeSearchPlugin,
+        ResponseGenerationPlugin responseGenerationPlugin)
     {
         _context = context;
         _configuration = configuration;
-        _httpClient = httpClientFactory.CreateClient("OpenAI");
         _environment = environment;
+        _errorLogService = errorLogService;
+        _kernelFactory = kernelFactory;
+        _queryRewritePlugin = queryRewritePlugin;
+        _knowledgeSearchPlugin = knowledgeSearchPlugin;
+        _responseGenerationPlugin = responseGenerationPlugin;
     }
 
     #region Document CRUD
@@ -122,6 +125,7 @@ public class KnowledgeService : IKnowledgeService
             catch (Exception ex)
             {
                 Console.WriteLine($"[Knowledge] Background processing failed for {document.Id}: {ex.Message}");
+                await _errorLogService.LogErrorAsync(ex, null, "Error");
             }
         });
 
@@ -179,6 +183,7 @@ public class KnowledgeService : IKnowledgeService
             catch (Exception ex)
             {
                 Console.WriteLine($"[Knowledge] Background processing failed for {document.Id}: {ex.Message}");
+                await _errorLogService.LogErrorAsync(ex, null, "Error");
             }
         });
 
@@ -276,28 +281,32 @@ public class KnowledgeService : IKnowledgeService
                 .ToListAsync();
             context.KnowledgeChunks.RemoveRange(existingChunks);
 
-            // Generate embeddings and save chunks
+            // Use SK memory to generate embeddings and save chunks
+            var memory = await _kernelFactory.CreateMemoryAsync();
+
             for (int i = 0; i < chunks.Count; i++)
             {
                 var chunkText = chunks[i].Text;
-                var embedding = await GenerateEmbeddingAsync(chunkText);
+                var chunkId = Guid.NewGuid().ToString();
 
-                var chunk = new KnowledgeChunk
+                // SaveInformationAsync generates embedding via SK and stores via our SqlServerMemoryStore
+                await memory.SaveInformationAsync(
+                    collection: document.SiteId,
+                    text: chunkText,
+                    id: chunkId,
+                    description: document.Title,
+                    additionalMetadata: documentId);
+
+                // Update the chunk record with proper metadata (SaveInformation created it via UpsertAsync)
+                var savedChunk = await context.KnowledgeChunks.FirstOrDefaultAsync(c => c.Id == chunkId);
+                if (savedChunk != null)
                 {
-                    Id = Guid.NewGuid().ToString(),
-                    DocumentId = documentId,
-                    SiteId = document.SiteId,
-                    Content = chunkText,
-                    ChunkIndex = i,
-                    StartOffset = chunks[i].StartOffset,
-                    EndOffset = chunks[i].EndOffset,
-                    TokenCount = chunks[i].TokenCount,
-                    EmbeddingJson = JsonSerializer.Serialize(embedding),
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
+                    savedChunk.ChunkIndex = i;
+                    savedChunk.StartOffset = chunks[i].StartOffset;
+                    savedChunk.EndOffset = chunks[i].EndOffset;
+                    savedChunk.TokenCount = chunks[i].TokenCount;
+                }
 
-                context.KnowledgeChunks.Add(chunk);
                 totalTokens += chunks[i].TokenCount;
             }
 
@@ -308,7 +317,7 @@ public class KnowledgeService : IKnowledgeService
             document.ProcessingError = null;
 
             await context.SaveChangesAsync();
-            Console.WriteLine($"[Knowledge] Document {documentId} indexed with {chunks.Count} chunks");
+            Console.WriteLine($"[Knowledge] Document {documentId} indexed with {chunks.Count} chunks via Semantic Kernel");
         }
         catch (Exception ex)
         {
@@ -316,6 +325,7 @@ public class KnowledgeService : IKnowledgeService
             document.ProcessingError = ex.Message;
             await context.SaveChangesAsync();
             Console.WriteLine($"[Knowledge] Document {documentId} processing failed: {ex.Message}");
+            await _errorLogService.LogErrorAsync(ex, null, "Error");
             throw;
         }
     }
@@ -341,6 +351,7 @@ public class KnowledgeService : IKnowledgeService
             catch (Exception ex)
             {
                 Console.WriteLine($"[Knowledge] Reprocessing failed for {document.Id}: {ex.Message}");
+                await _errorLogService.LogErrorAsync(ex, null, "Error");
             }
         });
 
@@ -353,142 +364,74 @@ public class KnowledgeService : IKnowledgeService
 
     public async Task<List<KnowledgeSearchResult>> SearchKnowledgeAsync(string siteId, KnowledgeSearchRequest request)
     {
-        // Generate query embedding
-        var queryEmbedding = await GenerateEmbeddingAsync(request.Query);
+        var memory = await _kernelFactory.CreateMemoryAsync();
+        var results = new List<KnowledgeSearchResult>();
 
-        // Get all chunks for the site
-        var chunks = await _context.KnowledgeChunks
-            .Include(c => c.Document)
-            .Where(c => c.SiteId == siteId && !c.Document!.IsDeleted && c.Document.Status == "indexed")
-            .ToListAsync();
-
-        // Calculate similarities
-        var results = new List<(KnowledgeChunk Chunk, double Similarity)>();
-
-        foreach (var chunk in chunks)
+        await foreach (var result in memory.SearchAsync(
+            collection: siteId,
+            query: request.Query,
+            limit: request.MaxResults,
+            minRelevanceScore: request.MinSimilarity))
         {
-            if (string.IsNullOrEmpty(chunk.EmbeddingJson)) continue;
-
-            var chunkEmbedding = JsonSerializer.Deserialize<float[]>(chunk.EmbeddingJson);
-            if (chunkEmbedding == null) continue;
-
-            var similarity = CosineSimilarity(queryEmbedding, chunkEmbedding);
-            if (similarity >= request.MinSimilarity)
-            {
-                results.Add((chunk, similarity));
-            }
+            results.Add(new KnowledgeSearchResult(
+                result.Metadata.Id,
+                result.Metadata.AdditionalMetadata ?? string.Empty,
+                result.Metadata.Description ?? "Unknown",
+                result.Metadata.Text,
+                result.Relevance,
+                0 // ChunkIndex not available from memory search; could be enriched if needed
+            ));
         }
 
-        // Return top results
-        return results
-            .OrderByDescending(r => r.Similarity)
-            .Take(request.MaxResults)
-            .Select(r => new KnowledgeSearchResult(
-                r.Chunk.Id,
-                r.Chunk.DocumentId,
-                r.Chunk.Document?.Title ?? "Unknown",
-                r.Chunk.Content,
-                r.Similarity,
-                r.Chunk.ChunkIndex
-            ))
-            .ToList();
+        return results;
     }
 
     public async Task<AnalyzeMessageWithRagResponse> AnalyzeMessageWithRagAsync(AnalyzeMessageWithRagRequest request)
     {
-        // Search for relevant knowledge
-        var searchResults = await SearchKnowledgeAsync(request.SiteId, new KnowledgeSearchRequest(
-            request.Message,
-            request.MaxChunks,
-            request.MinSimilarity
-        ));
-
-        var relevantKnowledge = searchResults.Select(r => new KnowledgeContextDto(
-            r.DocumentTitle,
-            r.Content,
-            r.Similarity
-        )).ToList();
-
-        // If no relevant knowledge found, return a polite decline without calling GPT
-        if (!searchResults.Any())
-        {
-            return new AnalyzeMessageWithRagResponse(
-                "I don't have specific information about that topic. A support agent will be with you shortly to help.",
-                "Medium",
-                50,
-                null,
-                "Wait for human agent",
-                "neutral",
-                "out_of_scope",
-                null,
-                relevantKnowledge,
-                false
-            );
-        }
-
-        // Note: We let GPT decide if the content is relevant enough to answer
-        // The similarity threshold already filters obviously unrelated content
-
-        // Build context for GPT
-        var contextBuilder = new StringBuilder();
-        contextBuilder.AppendLine("KNOWLEDGE BASE (You MUST only use this information to answer):");
-        foreach (var result in searchResults)
-        {
-            contextBuilder.AppendLine($"---");
-            contextBuilder.AppendLine($"Source: {result.DocumentTitle}");
-            contextBuilder.AppendLine(result.Content);
-        }
-        contextBuilder.AppendLine("---");
-
-        // Call GPT with augmented prompt
-        var openAiSettings = await GetOpenAiSettingsAsync();
-        var model = openAiSettings.Model;
-
-        var systemPrompt = @"You are a customer support assistant with STRICT limitations. You can ONLY answer questions using the EXACT information provided in the knowledge base content below.
-
-CRITICAL RULES - YOU MUST FOLLOW THESE:
-1. ONLY use information that is EXPLICITLY stated in the provided knowledge base content
-2. If the customer's question is NOT DIRECTLY answered by the knowledge base content, you MUST set suggested_reply to: 'I don't have specific information about that topic. A support agent will be with you shortly to help.'
-3. NEVER use your general knowledge or training data to answer questions
-4. NEVER make assumptions or inferences beyond what is explicitly written in the knowledge base
-5. If the question is about a completely different topic than what's in the knowledge base (e.g., asking about cooking when KB is about software), always decline to answer
-6. Be honest - if you're not sure if the KB answers the question, decline to answer
-
-EXAMPLES OF WHEN TO DECLINE:
-- Customer asks 'how to make tea' but KB is about product features → DECLINE
-- Customer asks about pricing but KB only has technical docs → DECLINE
-- Customer asks something vaguely related but KB doesn't have the specific answer → DECLINE";
-
-        var prompt = $@"Analyze this customer message and respond ONLY if the knowledge base below contains a DIRECT answer.
-
-{contextBuilder}
-
-Customer message: ""{request.Message}""
-
-IMPORTANT: First check if the knowledge base content above DIRECTLY answers this question. If NOT, set suggested_reply to the decline message.
-
-Return ONLY valid JSON:
-{{
-  ""suggested_reply"": ""<answer from KB OR decline message if KB doesn't cover this topic>"",
-  ""interest_level"": ""Low | Medium | High"",
-  ""conversion_percentage"": <number 0-100>,
-  ""objection"": ""<any objection detected or empty string>"",
-  ""next_action"": ""<recommended action>"",
-  ""sentiment"": ""positive | negative | neutral"",
-  ""intent"": ""<customer intent>"",
-  ""keywords"": [""<relevant keywords>""]
-}}";
-
-        var messages = new List<object>
-        {
-            new { role = "system", content = systemPrompt },
-            new { role = "user", content = prompt }
-        };
-
         try
         {
-            var responseContent = await CallOpenAiAsync(model, messages);
-            var result = JsonSerializer.Deserialize<JsonElement>(responseContent);
+            var kernel = await _kernelFactory.CreateKernelAsync();
+            var memory = await _kernelFactory.CreateMemoryAsync();
+
+            // Step 1: Rewrite query for better retrieval
+            var rewrittenQuery = await _queryRewritePlugin.RewriteQueryAsync(kernel, request.Message);
+
+            // Step 2: Search knowledge base via SK memory
+            var searchResultsJson = await _knowledgeSearchPlugin.SearchKnowledgeBaseAsync(
+                memory, rewrittenQuery, request.SiteId, request.MaxChunks, request.MinSimilarity);
+
+            // Parse search results for building relevantKnowledge
+            var searchResults = JsonSerializer.Deserialize<List<SearchResultItem>>(searchResultsJson)
+                ?? new List<SearchResultItem>();
+
+            var relevantKnowledge = searchResults.Select(r => new KnowledgeContextDto(
+                r.documentTitle ?? "Unknown",
+                r.content ?? string.Empty,
+                r.similarity
+            )).ToList();
+
+            // If no relevant knowledge found, return polite decline without calling GPT
+            if (!searchResults.Any())
+            {
+                return new AnalyzeMessageWithRagResponse(
+                    "I don't have specific information about that topic. A support agent will be with you shortly to help.",
+                    "Medium",
+                    50,
+                    null,
+                    "Wait for human agent",
+                    "neutral",
+                    "out_of_scope",
+                    null,
+                    relevantKnowledge,
+                    false
+                );
+            }
+
+            // Step 3: Generate structured response via SK plugin
+            var responseJson = await _responseGenerationPlugin.GenerateRagResponseAsync(
+                kernel, request.Message, searchResultsJson);
+
+            var result = JsonSerializer.Deserialize<JsonElement>(responseJson);
 
             // Parse conversion_percentage safely (handle both number and string)
             int conversionPct = 50;
@@ -517,7 +460,8 @@ Return ONLY valid JSON:
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[RAG] Error processing GPT response: {ex.Message}");
+            Console.WriteLine($"[RAG] Error in SK pipeline: {ex.Message}");
+            await _errorLogService.LogErrorAsync(ex, null, "Warning");
             return new AnalyzeMessageWithRagResponse(
                 "Thank you for your message. How can I help you further?",
                 "Medium",
@@ -527,11 +471,19 @@ Return ONLY valid JSON:
                 "neutral",
                 null,
                 null,
-                relevantKnowledge,
-                searchResults.Any()
+                new List<KnowledgeContextDto>(),
+                false
             );
         }
     }
+
+    // Internal DTO for deserializing search plugin results
+    private record SearchResultItem(
+        string? chunkId,
+        string? documentId,
+        string? documentTitle,
+        string? content,
+        double similarity);
 
     #endregion
 
@@ -656,118 +608,6 @@ Return ONLY valid JSON:
         }
 
         return chunks;
-    }
-
-    private async Task<float[]> GenerateEmbeddingAsync(string text)
-    {
-        var settings = await GetOpenAiSettingsAsync();
-        var apiKey = settings.ApiKey;
-
-        var requestBody = new
-        {
-            model = "text-embedding-3-small",
-            input = text
-        };
-
-        var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/embeddings");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(requestBody),
-            Encoding.UTF8,
-            "application/json"
-        );
-
-        var response = await _httpClient.SendAsync(request);
-        var responseContent = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new InvalidOperationException($"OpenAI API error: {responseContent}");
-        }
-
-        var jsonResponse = JsonSerializer.Deserialize<JsonElement>(responseContent);
-        var embeddingArray = jsonResponse.GetProperty("data")[0].GetProperty("embedding");
-
-        var embedding = new float[EMBEDDING_DIMENSIONS];
-        var index = 0;
-        foreach (var value in embeddingArray.EnumerateArray())
-        {
-            embedding[index++] = value.GetSingle();
-        }
-
-        return embedding;
-    }
-
-    private static double CosineSimilarity(float[] a, float[] b)
-    {
-        if (a.Length != b.Length) return 0;
-
-        double dotProduct = 0;
-        double magnitudeA = 0;
-        double magnitudeB = 0;
-
-        for (int i = 0; i < a.Length; i++)
-        {
-            dotProduct += a[i] * b[i];
-            magnitudeA += a[i] * a[i];
-            magnitudeB += b[i] * b[i];
-        }
-
-        magnitudeA = Math.Sqrt(magnitudeA);
-        magnitudeB = Math.Sqrt(magnitudeB);
-
-        if (magnitudeA == 0 || magnitudeB == 0) return 0;
-
-        return dotProduct / (magnitudeA * magnitudeB);
-    }
-
-    private async Task<string> CallOpenAiAsync(string model, List<object> messages)
-    {
-        var settings = await GetOpenAiSettingsAsync();
-        var apiKey = settings.ApiKey;
-
-        var requestBody = new
-        {
-            model = model,
-            messages = messages,
-            temperature = 0.7
-        };
-
-        var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(requestBody),
-            Encoding.UTF8,
-            "application/json"
-        );
-
-        var response = await _httpClient.SendAsync(request);
-        var responseContent = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new InvalidOperationException($"OpenAI API error: {responseContent}");
-        }
-
-        var jsonResponse = JsonSerializer.Deserialize<JsonElement>(responseContent);
-        var content = jsonResponse.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
-
-        // Strip markdown code blocks if present
-        content = content.Trim();
-        if (content.StartsWith("```json"))
-        {
-            content = content.Substring(7);
-        }
-        else if (content.StartsWith("```"))
-        {
-            content = content.Substring(3);
-        }
-        if (content.EndsWith("```"))
-        {
-            content = content.Substring(0, content.Length - 3);
-        }
-
-        return content.Trim();
     }
 
     #endregion

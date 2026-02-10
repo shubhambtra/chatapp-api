@@ -18,6 +18,7 @@ public class PaymentService : IPaymentService
     private readonly ISubscriptionService _subscriptionService;
     private readonly IEmailService _emailService;
     private readonly ILogger<PaymentService> _logger;
+    private readonly IErrorLogService _errorLogService;
 
     public PaymentService(
         ApplicationDbContext context,
@@ -25,7 +26,8 @@ public class PaymentService : IPaymentService
         IHttpClientFactory httpClientFactory,
         ISubscriptionService subscriptionService,
         IEmailService emailService,
-        ILogger<PaymentService> logger)
+        ILogger<PaymentService> logger,
+        IErrorLogService errorLogService)
     {
         _context = context;
         _configuration = configuration;
@@ -33,6 +35,7 @@ public class PaymentService : IPaymentService
         _subscriptionService = subscriptionService;
         _emailService = emailService;
         _logger = logger;
+        _errorLogService = errorLogService;
     }
 
     private async Task LogPaymentAction(PaymentLog log)
@@ -45,6 +48,7 @@ public class PaymentService : IPaymentService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to save payment log: {Action} {Gateway}", log.Action, log.Gateway);
+            await _errorLogService.LogErrorAsync(ex, null, "Warning");
         }
     }
 
@@ -447,6 +451,7 @@ public class PaymentService : IPaymentService
             await LogPaymentAction(log);
 
             _logger.LogError(ex, "Razorpay order creation exception: {Message}", ex.Message);
+            await _errorLogService.LogErrorAsync(ex, null, "Error");
             throw;
         }
     }
@@ -568,6 +573,7 @@ public class PaymentService : IPaymentService
             await LogPaymentAction(log);
 
             _logger.LogError(ex, "Razorpay registration order creation exception: {Message}", ex.Message);
+            await _errorLogService.LogErrorAsync(ex, null, "Error");
             throw;
         }
     }
@@ -751,6 +757,7 @@ public class PaymentService : IPaymentService
             {
                 // Don't fail the payment verification if email fails
                 _logger.LogError(emailEx, "Failed to send payment receipt email for Razorpay payment: {PaymentId}", payment.Id);
+                await _errorLogService.LogErrorAsync(emailEx, null, "Warning");
             }
 
             return new PaymentVerificationResult(
@@ -770,6 +777,7 @@ public class PaymentService : IPaymentService
             await LogPaymentAction(log);
 
             _logger.LogError(ex, "Razorpay payment verification exception: {Message}", ex.Message);
+            await _errorLogService.LogErrorAsync(ex, null, "Error");
 
             return new PaymentVerificationResult(
                 Success: false,
@@ -1150,6 +1158,7 @@ public class PaymentService : IPaymentService
             {
                 // Don't fail the payment verification if email fails
                 _logger.LogError(emailEx, "Failed to send payment receipt email for PayPal payment: {PaymentId}", payment.Id);
+                await _errorLogService.LogErrorAsync(emailEx, null, "Warning");
             }
 
             return new PaymentVerificationResult(
@@ -1161,6 +1170,7 @@ public class PaymentService : IPaymentService
         }
         catch (Exception ex)
         {
+            await _errorLogService.LogErrorAsync(ex, null, "Error");
             return new PaymentVerificationResult(
                 Success: false,
                 PaymentId: null,

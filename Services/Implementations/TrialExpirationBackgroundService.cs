@@ -34,6 +34,13 @@ public class TrialExpirationBackgroundService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while checking expirations");
+                try
+                {
+                    using var errorScope = _serviceProvider.CreateScope();
+                    var errorLogService = errorScope.ServiceProvider.GetRequiredService<IErrorLogService>();
+                    await errorLogService.LogErrorAsync(ex, null, "Error");
+                }
+                catch { /* error logging should never crash the app */ }
             }
 
             // Wait for the configured interval before checking again
@@ -141,6 +148,13 @@ public class TrialExpirationBackgroundService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send trial expired email to {Email}", user.Email);
+            try
+            {
+                using var errorScope = _serviceProvider.CreateScope();
+                var errorLogService = errorScope.ServiceProvider.GetRequiredService<IErrorLogService>();
+                await errorLogService.LogErrorAsync(ex, null, "Warning");
+            }
+            catch { }
         }
     }
 
@@ -191,6 +205,13 @@ public class TrialExpirationBackgroundService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send trial warning email to {Email}", user.Email);
+            try
+            {
+                using var errorScope = _serviceProvider.CreateScope();
+                var errorLogService = errorScope.ServiceProvider.GetRequiredService<IErrorLogService>();
+                await errorLogService.LogErrorAsync(ex, null, "Warning");
+            }
+            catch { }
         }
     }
 
@@ -296,6 +317,13 @@ public class TrialExpirationBackgroundService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send subscription expired email to {Email}", user.Email);
+            try
+            {
+                using var errorScope = _serviceProvider.CreateScope();
+                var errorLogService = errorScope.ServiceProvider.GetRequiredService<IErrorLogService>();
+                await errorLogService.LogErrorAsync(ex, null, "Warning");
+            }
+            catch { }
         }
     }
 
@@ -348,6 +376,13 @@ public class TrialExpirationBackgroundService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send subscription warning email to {Email}", user.Email);
+            try
+            {
+                using var errorScope = _serviceProvider.CreateScope();
+                var errorLogService = errorScope.ServiceProvider.GetRequiredService<IErrorLogService>();
+                await errorLogService.LogErrorAsync(ex, null, "Warning");
+            }
+            catch { }
         }
     }
 }

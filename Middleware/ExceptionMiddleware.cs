@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using ChatApp.API.Models.DTOs;
+using ChatApp.API.Services.Interfaces;
 
 namespace ChatApp.API.Middleware;
 
@@ -8,15 +9,20 @@ public class ExceptionMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionMiddleware> _logger;
+    private readonly IErrorLogService _errorLogService;
 
-    public ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddleware> logger)
+    public ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddleware> logger, IErrorLogService errorLogService)
     {
         _next = next;
         _logger = logger;
+        _errorLogService = errorLogService;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
+        // Enable request body buffering so we can read it in error logging
+        context.Request.EnableBuffering();
+
         try
         {
             await _next(context);
@@ -24,6 +30,17 @@ public class ExceptionMiddleware
         catch (Exception ex)
         {
             _logger.LogError(ex, "An unhandled exception occurred");
+
+            var severity = ex switch
+            {
+                KeyNotFoundException => "Warning",
+                UnauthorizedAccessException => "Warning",
+                InvalidOperationException => "Warning",
+                ArgumentException => "Warning",
+                _ => "Error"
+            };
+
+            await _errorLogService.LogErrorAsync(ex, context, severity);
             await HandleExceptionAsync(context, ex);
         }
     }

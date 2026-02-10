@@ -14,6 +14,7 @@ public class EmailService : IEmailService
     private readonly IConfiguration _configuration;
     private readonly ILogger<EmailService> _logger;
     private readonly ApplicationDbContext _dbContext;
+    private readonly IErrorLogService _errorLogService;
 
     // Cached SMTP settings
     private string _smtpHost = string.Empty;
@@ -30,11 +31,12 @@ public class EmailService : IEmailService
     private string _supportEmail = "support@assistica.com";
     private string _frontendUrl = "";
 
-    public EmailService(IConfiguration configuration, ILogger<EmailService> logger, ApplicationDbContext dbContext)
+    public EmailService(IConfiguration configuration, ILogger<EmailService> logger, ApplicationDbContext dbContext, IErrorLogService errorLogService)
     {
         _configuration = configuration;
         _logger = logger;
         _dbContext = dbContext;
+        _errorLogService = errorLogService;
     }
 
     private async Task LoadSmtpSettingsAsync()
@@ -168,6 +170,7 @@ public class EmailService : IEmailService
                 emailLog.Status = "failed";
                 emailLog.ErrorMessage = ex.Message;
                 _logger.LogError(ex, "Failed to send email to {Recipient}", recipient);
+                await _errorLogService.LogErrorAsync(ex, null, "Error");
                 throw;
             }
             finally

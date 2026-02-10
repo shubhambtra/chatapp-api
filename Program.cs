@@ -7,6 +7,8 @@ using Serilog;
 using ChatApp.API.Data;
 using ChatApp.API.Hubs;
 using ChatApp.API.Middleware;
+using Microsoft.SemanticKernel.Memory;
+using ChatApp.API.Plugins;
 using ChatApp.API.Services.Implementations;
 using ChatApp.API.Services.Interfaces;
 
@@ -142,8 +144,17 @@ builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<IKnowledgeService, KnowledgeService>();
+
+// Semantic Kernel services
+builder.Services.AddScoped<IMemoryStore, SqlServerMemoryStore>();
+builder.Services.AddScoped<QueryRewritePlugin>();
+builder.Services.AddScoped<KnowledgeSearchPlugin>();
+builder.Services.AddScoped<ResponseGenerationPlugin>();
+builder.Services.AddScoped<ISemanticKernelFactory, SemanticKernelFactory>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IPaymentLogService, PaymentLogService>();
+builder.Services.AddScoped<IWorkflowService, WorkflowService>();
+builder.Services.AddScoped<IErrorLogService, ErrorLogService>();
 
 // Register background services
 builder.Services.AddHostedService<TrialExpirationBackgroundService>();

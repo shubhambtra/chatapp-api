@@ -87,6 +87,13 @@ public class ApplicationDbContext : DbContext
     // App Configuration
     public DbSet<AppConfiguration> AppConfigurations => Set<AppConfiguration>();
 
+    // Workflows
+    public DbSet<Workflow> Workflows => Set<Workflow>();
+    public DbSet<WorkflowExecution> WorkflowExecutions => Set<WorkflowExecution>();
+
+    // Error Logs
+    public DbSet<ErrorLog> ErrorLogs => Set<ErrorLog>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

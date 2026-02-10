@@ -29,9 +29,18 @@ public class ConversationsController : ControllerBase
         [FromQuery] string? visitorId = null,
         [FromQuery] DateTime? from = null,
         [FromQuery] DateTime? to = null,
-        [FromQuery] string? search = null)
+        [FromQuery] string? search = null,
+        [FromQuery] string? tags = null,
+        [FromQuery] int? ratingMin = null,
+        [FromQuery] int? ratingMax = null,
+        [FromQuery] string? resolutionStatus = null,
+        [FromQuery] string? sentiment = null,
+        [FromQuery] string? intent = null,
+        [FromQuery] double? urgencyScoreMin = null,
+        [FromQuery] double? urgencyScoreMax = null)
     {
-        var request = new ConversationListRequest(page, pageSize, status, priority, assignedUserId, visitorId, from, to, search);
+        var request = new ConversationListRequest(page, pageSize, status, priority, assignedUserId, visitorId, from, to, search,
+            tags, ratingMin, ratingMax, resolutionStatus, sentiment, intent, urgencyScoreMin, urgencyScoreMax);
         var result = await _conversationService.GetConversationsAsync(siteId, request);
         return Ok(ApiResponse<PagedResponse<ConversationListDto>>.Ok(result));
     }
@@ -218,7 +227,7 @@ public class AdminConversationsController : ControllerBase
         // Get conversations from each site
         foreach (var site in sitesResult.Items)
         {
-            var request = new ConversationListRequest(page, pageSize, null, null, null, null, null, null, null);
+            var request = new ConversationListRequest(page, pageSize, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             var conversations = await _conversationService.GetConversationsAsync(site.Id, request);
 
             // Add site info to each conversation

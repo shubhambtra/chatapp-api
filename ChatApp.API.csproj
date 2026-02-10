@@ -4,6 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Suppress Semantic Kernel experimental API warnings -->
+    <NoWarn>$(NoWarn);SKEXP0001;SKEXP0010;SKEXP0050</NoWarn>
   </PropertyGroup>
 
 <ItemGroup>
@@ -38,7 +40,7 @@
     <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
 
     <!-- OpenAI for AI Analysis -->
-    <PackageReference Include="OpenAI" Version="1.7.2" />
+    <PackageReference Include="OpenAI" Version="2.1.0-beta.2" />
 
     <!-- Stripe for Payments -->
     <PackageReference Include="Stripe.net" Version="43.0.0" />
@@ -51,6 +53,11 @@
     <!-- Document Processing for Knowledge Base -->
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.0.0" />
     <PackageReference Include="PdfPig" Version="0.1.8" />
+
+    <!-- Semantic Kernel for RAG Pipeline -->
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.30.0" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.OpenAI" Version="1.30.0" />
+    <PackageReference Include="Microsoft.SemanticKernel.Plugins.Memory" Version="1.30.0-alpha" />
   </ItemGroup>
 
 </Project>
