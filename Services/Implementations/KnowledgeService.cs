@@ -393,8 +393,16 @@ public class KnowledgeService : IKnowledgeService
             var kernel = await _kernelFactory.CreateKernelAsync();
             var memory = await _kernelFactory.CreateMemoryAsync();
 
-            // Step 1: Rewrite query for better retrieval
-            var rewrittenQuery = await _queryRewritePlugin.RewriteQueryAsync(kernel, request.Message);
+            // Step 1: Rewrite query for better retrieval (non-critical — fallback to original)
+            var rewrittenQuery = request.Message;
+            try
+            {
+                rewrittenQuery = await _queryRewritePlugin.RewriteQueryAsync(kernel, request.Message);
+            }
+            catch (Exception rewriteEx)
+            {
+                Console.WriteLine($"[RAG] Query rewrite failed, using original: {rewriteEx.Message}");
+            }
 
             // Step 2: Search knowledge base via SK memory
             var searchResultsJson = await _knowledgeSearchPlugin.SearchKnowledgeBaseAsync(
@@ -414,7 +422,7 @@ public class KnowledgeService : IKnowledgeService
             if (!searchResults.Any())
             {
                 return new AnalyzeMessageWithRagResponse(
-                    "I don't have specific information about that topic. A support agent will be with you shortly to help.",
+                    "I don't have specific information about that topic in our knowledge base.",
                     "Medium",
                     50,
                     null,
@@ -427,43 +435,30 @@ public class KnowledgeService : IKnowledgeService
                 );
             }
 
-            // Step 3: Generate structured response via SK plugin
-            var responseJson = await _responseGenerationPlugin.GenerateRagResponseAsync(
+            // Step 3: Generate plain-text response via SK plugin
+            var answer = await _responseGenerationPlugin.GenerateRagResponseAsync(
                 kernel, request.Message, searchResultsJson);
 
-            var result = JsonSerializer.Deserialize<JsonElement>(responseJson);
-
-            // Parse conversion_percentage safely (handle both number and string)
-            int conversionPct = 50;
-            if (result.TryGetProperty("conversion_percentage", out var conversion))
-            {
-                if (conversion.ValueKind == JsonValueKind.Number)
-                    conversionPct = conversion.GetInt32();
-                else if (conversion.ValueKind == JsonValueKind.String && int.TryParse(conversion.GetString(), out var parsed))
-                    conversionPct = parsed;
-            }
-
             return new AnalyzeMessageWithRagResponse(
-                result.TryGetProperty("suggested_reply", out var reply) ? reply.GetString() ?? "" : "",
-                result.TryGetProperty("interest_level", out var interest) ? interest.GetString() ?? "Medium" : "Medium",
-                conversionPct,
-                result.TryGetProperty("objection", out var objection) ? objection.GetString() : null,
-                result.TryGetProperty("next_action", out var action) ? action.GetString() ?? "" : "",
-                result.TryGetProperty("sentiment", out var sentiment) ? sentiment.GetString() : null,
-                result.TryGetProperty("intent", out var intent) ? intent.GetString() : null,
-                result.TryGetProperty("keywords", out var keywords)
-                    ? JsonSerializer.Deserialize<List<string>>(keywords.GetRawText())
-                    : null,
+                answer,
+                "Medium",
+                50,
+                null,
+                "Continue the conversation",
+                "neutral",
+                "inquiry",
+                null,
                 relevantKnowledge,
-                searchResults.Any()
+                true
             );
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[RAG] Error in SK pipeline: {ex.Message}");
+            Console.WriteLine($"[RAG] Error in SK pipeline: {ex.Message} | StackTrace: {ex.StackTrace}");
             await _errorLogService.LogErrorAsync(ex, null, "Warning");
+            // Include error details in response for debugging
             return new AnalyzeMessageWithRagResponse(
-                "Thank you for your message. How can I help you further?",
+                $"[Debug] SK pipeline error: {ex.Message}",
                 "Medium",
                 50,
                 null,

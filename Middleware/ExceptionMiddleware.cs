@@ -9,13 +9,11 @@ public class ExceptionMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionMiddleware> _logger;
-    private readonly IErrorLogService _errorLogService;
 
-    public ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddleware> logger, IErrorLogService errorLogService)
+    public ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddleware> logger)
     {
         _next = next;
         _logger = logger;
-        _errorLogService = errorLogService;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -40,7 +38,13 @@ public class ExceptionMiddleware
                 _ => "Error"
             };
 
-            await _errorLogService.LogErrorAsync(ex, context, severity);
+            // Resolve scoped service per-request
+            var errorLogService = context.RequestServices.GetService<IErrorLogService>();
+            if (errorLogService != null)
+            {
+                await errorLogService.LogErrorAsync(ex, context, severity);
+            }
+
             await HandleExceptionAsync(context, ex);
         }
     }

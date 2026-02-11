@@ -182,12 +182,15 @@ public class SqlServerMemoryStore : IMemoryStore
         var queryVector = embedding.ToArray();
         var scored = new List<(Models.Entities.KnowledgeChunk Chunk, double Score)>();
 
+        Console.WriteLine($"[MemoryStore] Found {chunks.Count} chunks for collection '{collectionName}', query embedding dims: {queryVector.Length}, minScore: {minRelevanceScore}");
+
         foreach (var chunk in chunks)
         {
             var chunkEmbedding = JsonSerializer.Deserialize<float[]>(chunk.EmbeddingJson!);
             if (chunkEmbedding == null) continue;
 
             var similarity = CosineSimilarity(queryVector, chunkEmbedding);
+            Console.WriteLine($"[MemoryStore] Chunk '{chunk.Id}' dims: {chunkEmbedding.Length}, similarity: {similarity:F4}");
             if (similarity >= minRelevanceScore)
             {
                 scored.Add((chunk, similarity));
