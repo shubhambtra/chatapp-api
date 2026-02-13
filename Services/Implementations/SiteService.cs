@@ -121,12 +121,10 @@ public class SiteService : ISiteService
                 if (selectedPlan != null) planName = selectedPlan.Name;
             }
 
-            var adminEmails = await _context.Users
-                .Where(u => u.Role == "super_admin" && u.IsActive)
-                .Select(u => u.Email)
-                .ToListAsync();
+            var siteSettings = await _context.SiteSettings.FirstOrDefaultAsync();
+            var contactEmail = siteSettings?.SupportEmail;
 
-            if (adminEmails.Count > 0)
+            if (!string.IsNullOrEmpty(contactEmail))
             {
                 var subject = $"New Registration: {user?.Email ?? request.Name}";
                 var body = $@"
@@ -141,7 +139,7 @@ public class SiteService : ISiteService
 <tr><td style='padding:8px 16px;font-weight:bold;'>Registered At</td><td style='padding:8px 16px;'>{DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC</td></tr>
 </table>";
 
-                await _emailService.SendEmailAsync(adminEmails, subject, body);
+                await _emailService.SendEmailAsync(contactEmail, subject, body);
             }
         }
         catch (Exception ex)
