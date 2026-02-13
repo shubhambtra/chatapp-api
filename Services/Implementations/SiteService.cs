@@ -110,6 +110,46 @@ public class SiteService : ISiteService
             await _subscriptionService.AssignFreePlanToSiteAsync(site.Id);
         }
 
+        // Notify super admin(s) about new registration
+        try
+        {
+            var planName = "Free";
+            var billingCycle = request.BillingCycle ?? "monthly";
+            if (!string.IsNullOrEmpty(request.PlanId))
+            {
+                var selectedPlan = await _context.SubscriptionPlans.FindAsync(request.PlanId);
+                if (selectedPlan != null) planName = selectedPlan.Name;
+            }
+
+            var adminEmails = await _context.Users
+                .Where(u => u.Role == "super_admin" && u.IsActive)
+                .Select(u => u.Email)
+                .ToListAsync();
+
+            if (adminEmails.Count > 0)
+            {
+                var subject = $"New Registration: {user?.Email ?? request.Name}";
+                var body = $@"
+<h2>New User Registration</h2>
+<table style='border-collapse:collapse;font-family:Arial,sans-serif;'>
+<tr><td style='padding:8px 16px;font-weight:bold;'>Name</td><td style='padding:8px 16px;'>{user?.FirstName} {user?.LastName}</td></tr>
+<tr><td style='padding:8px 16px;font-weight:bold;'>Email</td><td style='padding:8px 16px;'>{user?.Email}</td></tr>
+<tr><td style='padding:8px 16px;font-weight:bold;'>Username</td><td style='padding:8px 16px;'>{user?.Username}</td></tr>
+<tr><td style='padding:8px 16px;font-weight:bold;'>Site Name</td><td style='padding:8px 16px;'>{site.Name}</td></tr>
+<tr><td style='padding:8px 16px;font-weight:bold;'>Domain</td><td style='padding:8px 16px;'>{site.Domain}</td></tr>
+<tr><td style='padding:8px 16px;font-weight:bold;'>Plan</td><td style='padding:8px 16px;'>{planName} ({billingCycle})</td></tr>
+<tr><td style='padding:8px 16px;font-weight:bold;'>Registered At</td><td style='padding:8px 16px;'>{DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC</td></tr>
+</table>";
+
+                await _emailService.SendEmailAsync(adminEmails, subject, body);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Don't fail registration if admin notification fails
+            await _errorLogService.LogErrorAsync(ex, null, "Warning");
+        }
+
         return await MapToDto(site);
     }
 
