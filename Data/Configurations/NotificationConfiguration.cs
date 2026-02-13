@@ -15,7 +15,7 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
 
         builder.Property(n => n.UserId).IsRequired().HasMaxLength(36);
         builder.Property(n => n.SiteId).HasMaxLength(36);
-        builder.Property(n => n.Type).IsRequired().HasMaxLength(50);
+        builder.Property(n => n.Type).IsRequired().HasMaxLength(255);
         builder.Property(n => n.Title).IsRequired().HasMaxLength(255);
         builder.Property(n => n.Message).HasMaxLength(500);
         builder.Property(n => n.ActionUrl).HasMaxLength(500);

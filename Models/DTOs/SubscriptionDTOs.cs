@@ -22,7 +22,8 @@ public record SubscriptionPlanDto(
     bool AiAnalysisEnabled,
     bool AiAutoReplyEnabled,
     int? MaxAiAnalysesPerMonth,
-    int? MaxAiAutoRepliesPerMonth
+    int? MaxAiAutoRepliesPerMonth,
+    bool ChatTranscriptsEnabled
 );
 
 public record PlanFeatureDto(
@@ -129,7 +130,8 @@ public record CreatePlanRequest(
     bool AiAnalysisEnabled = false,
     bool AiAutoReplyEnabled = false,
     int? MaxAiAnalysesPerMonth = null,
-    int? MaxAiAutoRepliesPerMonth = null
+    int? MaxAiAutoRepliesPerMonth = null,
+    bool ChatTranscriptsEnabled = false
 );
 
 public record UpdatePlanRequest(
@@ -154,7 +156,8 @@ public record UpdatePlanRequest(
     bool? AiAnalysisEnabled = null,
     bool? AiAutoReplyEnabled = null,
     int? MaxAiAnalysesPerMonth = null,
-    int? MaxAiAutoRepliesPerMonth = null
+    int? MaxAiAutoRepliesPerMonth = null,
+    bool? ChatTranscriptsEnabled = null
 );
 
 public record PlanDetailDto(
@@ -181,6 +184,7 @@ public record PlanDetailDto(
     bool AiAutoReplyEnabled,
     int? MaxAiAnalysesPerMonth,
     int? MaxAiAutoRepliesPerMonth,
+    bool ChatTranscriptsEnabled,
     int SubscribersCount,
     DateTime CreatedAt
 );

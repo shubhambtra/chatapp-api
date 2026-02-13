@@ -477,6 +477,7 @@ public class SubscriptionService : ISubscriptionService
                 p.AiAutoReplyEnabled,
                 p.MaxAiAnalysesPerMonth,
                 p.MaxAiAutoRepliesPerMonth,
+                p.ChatTranscriptsEnabled,
                 p.Subscriptions.Count(s => s.Status == "active"),
                 p.CreatedAt
             ))
@@ -513,6 +514,7 @@ public class SubscriptionService : ISubscriptionService
                 p.AiAutoReplyEnabled,
                 p.MaxAiAnalysesPerMonth,
                 p.MaxAiAutoRepliesPerMonth,
+                p.ChatTranscriptsEnabled,
                 p.Subscriptions.Count(s => s.Status == "active"),
                 p.CreatedAt
             ))
@@ -546,7 +548,8 @@ public class SubscriptionService : ISubscriptionService
             AiAnalysisEnabled = request.AiAnalysisEnabled,
             AiAutoReplyEnabled = request.AiAutoReplyEnabled,
             MaxAiAnalysesPerMonth = request.MaxAiAnalysesPerMonth,
-            MaxAiAutoRepliesPerMonth = request.MaxAiAutoRepliesPerMonth
+            MaxAiAutoRepliesPerMonth = request.MaxAiAutoRepliesPerMonth,
+            ChatTranscriptsEnabled = request.ChatTranscriptsEnabled
         };
 
         _context.SubscriptionPlans.Add(plan);
@@ -576,6 +579,7 @@ public class SubscriptionService : ISubscriptionService
             plan.AiAutoReplyEnabled,
             plan.MaxAiAnalysesPerMonth,
             plan.MaxAiAutoRepliesPerMonth,
+            plan.ChatTranscriptsEnabled,
             0,
             plan.CreatedAt
         );
@@ -608,6 +612,7 @@ public class SubscriptionService : ISubscriptionService
         if (request.AiAutoReplyEnabled.HasValue) plan.AiAutoReplyEnabled = request.AiAutoReplyEnabled.Value;
         if (request.MaxAiAnalysesPerMonth.HasValue) plan.MaxAiAnalysesPerMonth = request.MaxAiAnalysesPerMonth.Value;
         if (request.MaxAiAutoRepliesPerMonth.HasValue) plan.MaxAiAutoRepliesPerMonth = request.MaxAiAutoRepliesPerMonth.Value;
+        if (request.ChatTranscriptsEnabled.HasValue) plan.ChatTranscriptsEnabled = request.ChatTranscriptsEnabled.Value;
 
         await _context.SaveChangesAsync();
 
@@ -637,6 +642,7 @@ public class SubscriptionService : ISubscriptionService
             plan.AiAutoReplyEnabled,
             plan.MaxAiAnalysesPerMonth,
             plan.MaxAiAutoRepliesPerMonth,
+            plan.ChatTranscriptsEnabled,
             subscribersCount,
             plan.CreatedAt
         );
@@ -687,7 +693,8 @@ public class SubscriptionService : ISubscriptionService
         plan.AiAnalysisEnabled,
         plan.AiAutoReplyEnabled,
         plan.MaxAiAnalysesPerMonth,
-        plan.MaxAiAutoRepliesPerMonth
+        plan.MaxAiAutoRepliesPerMonth,
+        plan.ChatTranscriptsEnabled
     );
 
     private async Task<SubscriptionDto> GetSubscriptionDtoAsync(Subscription subscription)

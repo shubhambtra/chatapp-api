@@ -38,6 +38,57 @@ public class PaymentService : IPaymentService
         _errorLogService = errorLogService;
     }
 
+    // ==================== DB CONFIG OVERRIDE HELPERS ====================
+
+    private AppConfiguration? _cachedAppConfig;
+    private bool _appConfigLoaded;
+
+    private async Task<AppConfiguration?> GetAppConfigAsync()
+    {
+        if (!_appConfigLoaded)
+        {
+            _cachedAppConfig = await _context.AppConfigurations.FirstOrDefaultAsync();
+            _appConfigLoaded = true;
+        }
+        return _cachedAppConfig;
+    }
+
+    /// <summary>
+    /// Returns (KeyId, KeySecret) for Razorpay — DB first when IsActive, else appsettings.json
+    /// </summary>
+    private async Task<(string? KeyId, string? KeySecret)> GetRazorpayCredentialsAsync()
+    {
+        var appConfig = await GetAppConfigAsync();
+        if (appConfig is { IsActive: true })
+        {
+            var dbKeyId = appConfig.RazorpayKeyId;
+            var dbKeySecret = appConfig.RazorpayKeySecret;
+            if (!string.IsNullOrWhiteSpace(dbKeyId) && !string.IsNullOrWhiteSpace(dbKeySecret))
+            {
+                return (dbKeyId, dbKeySecret);
+            }
+        }
+        return (_configuration["Razorpay:KeyId"], _configuration["Razorpay:KeySecret"]);
+    }
+
+    /// <summary>
+    /// Returns (ClientId, ClientSecret, Mode) for PayPal — DB first when IsActive, else appsettings.json
+    /// </summary>
+    private async Task<(string? ClientId, string? ClientSecret, string Mode)> GetPayPalCredentialsAsync()
+    {
+        var appConfig = await GetAppConfigAsync();
+        if (appConfig is { IsActive: true })
+        {
+            var dbClientId = appConfig.PayPalClientId;
+            var dbClientSecret = appConfig.PayPalClientSecret;
+            if (!string.IsNullOrWhiteSpace(dbClientId) && !string.IsNullOrWhiteSpace(dbClientSecret))
+            {
+                return (dbClientId, dbClientSecret, appConfig.PayPalMode ?? "sandbox");
+            }
+        }
+        return (_configuration["PayPal:ClientId"], _configuration["PayPal:ClientSecret"], _configuration["PayPal:Mode"] ?? "sandbox");
+    }
+
     private async Task LogPaymentAction(PaymentLog log)
     {
         try
@@ -352,8 +403,7 @@ public class PaymentService : IPaymentService
 
         try
         {
-            var keyId = _configuration["Razorpay:KeyId"];
-            var keySecret = _configuration["Razorpay:KeySecret"];
+            var (keyId, keySecret) = await GetRazorpayCredentialsAsync();
 
             _logger.LogInformation("Creating Razorpay order: SiteId={SiteId}, Amount={Amount}, Currency={Currency}, PlanId={PlanId}",
                 siteId, amount, currency, planId);
@@ -473,8 +523,7 @@ public class PaymentService : IPaymentService
 
         try
         {
-            var keyId = _configuration["Razorpay:KeyId"];
-            var keySecret = _configuration["Razorpay:KeySecret"];
+            var (keyId, keySecret) = await GetRazorpayCredentialsAsync();
 
             _logger.LogInformation("Creating Razorpay registration order: PaymentRef={PaymentRef}, Amount={Amount}, Currency={Currency}, PlanId={PlanId}",
                 paymentReference, amount, currency, planId);
@@ -597,7 +646,7 @@ public class PaymentService : IPaymentService
 
         try
         {
-            var keySecret = _configuration["Razorpay:KeySecret"];
+            var (_, keySecret) = await GetRazorpayCredentialsAsync();
 
             if (string.IsNullOrEmpty(keySecret))
             {
@@ -799,9 +848,7 @@ public class PaymentService : IPaymentService
 
     public async Task<PayPalOrderResponse> CreatePayPalOrderAsync(string siteId, decimal amount, string currency, string planId, string billingCycle, string returnUrl)
     {
-        var clientId = _configuration["PayPal:ClientId"];
-        var clientSecret = _configuration["PayPal:ClientSecret"];
-        var mode = _configuration["PayPal:Mode"] ?? "sandbox";
+        var (clientId, clientSecret, mode) = await GetPayPalCredentialsAsync();
 
         if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
             throw new InvalidOperationException("PayPal credentials not configured");
@@ -894,9 +941,7 @@ public class PaymentService : IPaymentService
 
     public async Task<PayPalOrderResponse> CreatePayPalRegistrationOrderAsync(string paymentReference, decimal amount, string currency, string planId, string billingCycle, string returnUrl)
     {
-        var clientId = _configuration["PayPal:ClientId"];
-        var clientSecret = _configuration["PayPal:ClientSecret"];
-        var mode = _configuration["PayPal:Mode"] ?? "sandbox";
+        var (clientId, clientSecret, mode) = await GetPayPalCredentialsAsync();
 
         if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
             throw new InvalidOperationException("PayPal credentials not configured");
@@ -992,9 +1037,7 @@ public class PaymentService : IPaymentService
 
     public async Task<PaymentVerificationResult> CapturePayPalPaymentAsync(string orderId, string siteId, string planId, string billingCycle)
     {
-        var clientId = _configuration["PayPal:ClientId"];
-        var clientSecret = _configuration["PayPal:ClientSecret"];
-        var mode = _configuration["PayPal:Mode"] ?? "sandbox";
+        var (clientId, clientSecret, mode) = await GetPayPalCredentialsAsync();
 
         if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
             throw new InvalidOperationException("PayPal credentials not configured");

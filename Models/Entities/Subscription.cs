@@ -30,6 +30,9 @@ public class SubscriptionPlan : BaseEntity
     public int? MaxAiAnalysesPerMonth { get; set; }
     public int? MaxAiAutoRepliesPerMonth { get; set; }
 
+    // Export Features
+    public bool ChatTranscriptsEnabled { get; set; }
+
     // Status
     public bool IsActive { get; set; } = true;
     public bool IsPublic { get; set; } = true;
