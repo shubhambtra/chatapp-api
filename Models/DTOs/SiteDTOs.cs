@@ -54,7 +54,8 @@ public record UpdateSiteRequest(
     string? AllowedFileTypes,
     bool? AutoReplyEnabled,
     bool? AnalysisEnabled,
-    string? OnboardingState
+    string? OnboardingState,
+    string? Status
 );
 
 public record WidgetConfigDto(

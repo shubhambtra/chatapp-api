@@ -94,7 +94,7 @@ public class SitesController : ControllerBase
         try
         {
             await _siteService.DeleteSiteAsync(siteId);
-            return Ok(ApiResponse<object>.Ok(null, "Site deleted successfully"));
+            return Ok(ApiResponse<object>.Ok(null, "Site deactivated successfully"));
         }
         catch (KeyNotFoundException ex)
         {

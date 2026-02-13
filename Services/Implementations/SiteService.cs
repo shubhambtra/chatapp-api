@@ -164,7 +164,8 @@ public class SiteService : ISiteService
     public async Task<PagedResponse<SiteDto>> GetUserSitesAsync(string userId, int page, int pageSize)
     {
         var query = _context.Sites
-            .Where(s => s.UserSites.Any(us => us.UserId == userId));
+            .Where(s => s.UserSites.Any(us => us.UserId == userId))
+            .Where(s => s.Status != "inactive");
 
         var totalItems = await query.CountAsync();
         var sites = await query
@@ -244,6 +245,7 @@ public class SiteService : ISiteService
         if (request.AutoReplyEnabled.HasValue) site.AutoReplyEnabled = request.AutoReplyEnabled.Value;
         if (request.AnalysisEnabled.HasValue) site.AnalysisEnabled = request.AnalysisEnabled.Value;
         if (request.OnboardingState != null) site.OnboardingState = request.OnboardingState;
+        if (request.Status != null) site.Status = request.Status;
 
         await _context.SaveChangesAsync();
 
@@ -255,7 +257,9 @@ public class SiteService : ISiteService
         var site = await _context.Sites.FindAsync(siteId);
         if (site == null) throw new KeyNotFoundException("Site not found");
 
-        _context.Sites.Remove(site);
+        // Soft delete: set status to inactive instead of hard delete (FK constraints prevent removal)
+        site.Status = "inactive";
+        site.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
     }
 
