@@ -38,6 +38,22 @@ public class AppConfigurationController : ControllerBase
     }
 
     /// <summary>
+    /// Get payment gateway enable/disable status (public, no secrets exposed)
+    /// </summary>
+    [HttpGet("payment-gateways")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<object>>> GetPaymentGatewayStatus()
+    {
+        var settings = await _context.AppConfigurations.FirstOrDefaultAsync();
+        var result = new
+        {
+            razorpayEnabled = settings?.RazorpayEnabled ?? false,
+            paypalEnabled = settings?.PayPalEnabled ?? false
+        };
+        return Ok(ApiResponse<object>.Ok(result));
+    }
+
+    /// <summary>
     /// Update app configuration (partial updates supported)
     /// </summary>
     [HttpPut]
@@ -58,11 +74,13 @@ public class AppConfigurationController : ControllerBase
         // Razorpay
         if (request.RazorpayKeyId != null) settings.RazorpayKeyId = request.RazorpayKeyId;
         if (request.RazorpayKeySecret != null) settings.RazorpayKeySecret = request.RazorpayKeySecret;
+        if (request.RazorpayEnabled.HasValue) settings.RazorpayEnabled = request.RazorpayEnabled.Value;
 
         // PayPal
         if (request.PayPalClientId != null) settings.PayPalClientId = request.PayPalClientId;
         if (request.PayPalClientSecret != null) settings.PayPalClientSecret = request.PayPalClientSecret;
         if (request.PayPalMode != null) settings.PayPalMode = request.PayPalMode;
+        if (request.PayPalEnabled.HasValue) settings.PayPalEnabled = request.PayPalEnabled.Value;
 
         // FTP
         if (request.FtpHost != null) settings.FtpHost = request.FtpHost;
@@ -124,10 +142,12 @@ public class AppConfigurationController : ControllerBase
             // Razorpay
             RazorpayKeyId = MaskSecret(_configuration["Razorpay:KeyId"]),
             RazorpayKeySecret = MaskSecret(_configuration["Razorpay:KeySecret"]),
+            RazorpayEnabled = false,
             // PayPal
             PayPalClientId = MaskSecret(_configuration["PayPal:ClientId"]),
             PayPalClientSecret = MaskSecret(_configuration["PayPal:ClientSecret"]),
             PayPalMode = _configuration["PayPal:Mode"] ?? "sandbox",
+            PayPalEnabled = false,
             // FTP
             FtpHost = _configuration["FTP:Host"] ?? "",
             FtpUsername = MaskSecret(_configuration["FTP:FTPHostUser"]),
@@ -171,10 +191,12 @@ public class AppConfigurationController : ControllerBase
             // Razorpay
             RazorpayKeyId = settings.RazorpayKeyId,
             RazorpayKeySecret = settings.RazorpayKeySecret,
+            RazorpayEnabled = settings.RazorpayEnabled,
             // PayPal
             PayPalClientId = settings.PayPalClientId,
             PayPalClientSecret = settings.PayPalClientSecret,
             PayPalMode = settings.PayPalMode,
+            PayPalEnabled = settings.PayPalEnabled,
             // FTP
             FtpHost = settings.FtpHost,
             FtpUsername = settings.FtpUsername,
@@ -221,11 +243,13 @@ public class AppConfigurationDto
     // Razorpay
     public string? RazorpayKeyId { get; set; }
     public string? RazorpayKeySecret { get; set; }
+    public bool RazorpayEnabled { get; set; }
 
     // PayPal
     public string? PayPalClientId { get; set; }
     public string? PayPalClientSecret { get; set; }
     public string? PayPalMode { get; set; }
+    public bool PayPalEnabled { get; set; }
 
     // FTP
     public string? FtpHost { get; set; }
@@ -276,11 +300,13 @@ public class UpdateAppConfigurationRequest
     // Razorpay
     public string? RazorpayKeyId { get; set; }
     public string? RazorpayKeySecret { get; set; }
+    public bool? RazorpayEnabled { get; set; }
 
     // PayPal
     public string? PayPalClientId { get; set; }
     public string? PayPalClientSecret { get; set; }
     public string? PayPalMode { get; set; }
+    public bool? PayPalEnabled { get; set; }
 
     // FTP
     public string? FtpHost { get; set; }

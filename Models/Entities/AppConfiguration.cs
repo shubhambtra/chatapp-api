@@ -22,6 +22,9 @@ public class AppConfiguration : BaseEntity
     [Column("razorpay_key_secret")]
     public string? RazorpayKeySecret { get; set; }
 
+    [Column("razorpay_enabled")]
+    public bool RazorpayEnabled { get; set; } = false;
+
     // PayPal
     [Column("paypal_client_id")]
     public string? PayPalClientId { get; set; }
@@ -31,6 +34,9 @@ public class AppConfiguration : BaseEntity
 
     [Column("paypal_mode")]
     public string? PayPalMode { get; set; }
+
+    [Column("paypal_enabled")]
+    public bool PayPalEnabled { get; set; } = false;
 
     // FTP
     [Column("ftp_host")]
